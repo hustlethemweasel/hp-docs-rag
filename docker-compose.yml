@@ -62,7 +62,24 @@ services:
     # Model pull happens on first use; pre-pull with:
     #   docker compose --profile local exec ollama ollama pull qwen3.5:4b
 
-  # locust service arrives in Milestone 6 (profile: loadtest)
+  locust:
+    profiles: [loadtest]
+    image: locustio/locust:2.32.4
+    volumes:
+      - ./loadtest:/mnt/locust
+    ports:
+      - "8089:8089"
+    environment:
+      LOCUST_HOST: ${LOCUST_HOST:-http://api:8000}
+    # Headless by default (CI/report-friendly); override `command` for the
+    # interactive web UI at http://localhost:8089, e.g.:
+    #   docker compose --profile loadtest run --rm --service-ports locust -f /mnt/locust/locustfile.py
+    command: >
+      -f /mnt/locust/locustfile.py
+      --headless --users 20 --spawn-rate 2 --run-time 3m
+      --csv /mnt/locust/results/run
+    depends_on:
+      - api
 
 volumes:
   pgdata:
