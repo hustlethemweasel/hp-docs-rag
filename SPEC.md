@@ -39,21 +39,26 @@ Cross-cutting engineering principles that govern every implementation decision i
 
 ## 3. Requirements Traceability
 
-| # | Requirement | How it's satisfied |
-|---|---|---|
-| R1 | Frontend with GUI | Next.js (React) SPA — chat UI with history sidebar |
-| R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models |
-| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced |
-| R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var |
-| R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension |
-| R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo |
-| R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) |
-| R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) |
-| R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt |
-| R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres |
-| R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job |
-| R12 | Load tests | Locust scenario; report requests/minute at latency thresholds (§12) |
-| R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) |
+This table is the progress scoreboard. **A requirement is Done only when its
+evidence exists and passes in CI** — a green gate, a committed report, a passing
+test — never on the strength of intent. Status changes ship in the same commit
+as the work they describe.
+
+| # | Requirement | How it's satisfied | Status |
+|---|---|---|---|
+| R1 | Frontend with GUI | Next.js (React) SPA — chat UI with history sidebar | Not started (placeholder page only) |
+| R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — skeleton + health (M1) |
+| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1 (97.8%) |
+| R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Not started |
+| R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | In progress — extension + HNSW schema migrated and verified (M1) |
+| R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | In progress — checksum pinning + fail-fast verification built (M1) |
+| R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | Not started |
+| R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Not started |
+| R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Not started |
+| R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | In progress — schema migrated (M1); persistence code pending |
+| R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — compose written (M1); first boot not yet verified |
+| R12 | Load tests | Locust scenario; report requests/minute at latency thresholds (§12) | Not started |
+| R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) | Not started |
 
 ---
 
@@ -347,12 +352,23 @@ The backend uses a **src layout** managed with uv: `uv sync` installs `app` as a
 
 ## 16. Milestones
 
-1. **Skeleton & infra** — fetch the two PDFs and pin checksums; Compose with db/api/frontend placeholders; Alembic baseline migration; health endpoint; CI pipeline (lint, pyrefly, fast suite, commitlint).
-2. **Ingestion** — parsing, chunking, embeddings, pgvector schema; unit tests.
-3. **Retrieval & chat** — hybrid search, provider layer, SSE endpoint, history persistence; unit tests to ≥90%.
-4. **Frontend** — chat UI, streaming, conversation sidebar, citations.
-5. **Evaluation** — golden dataset, benchmark runner, tune chunking/top-k.
-6. **Load tests & polish** — Locust runs, reports, README, final review against requirement table (§3).
+Each milestone has an observable exit criterion; the box is checked in the same
+commit that satisfies it. In-progress work is visible as red tests (TDD).
+
+- [x] **1. Skeleton & infra** — fetch script + checksum pinning; Compose with db/api/frontend placeholders; Alembic baseline migration; health endpoint; CI pipeline (lint, pyrefly, fast suite, commitlint).
+  *Exit: quality gates green; schema verified against real Postgres.*
+  *Evidence: 13 fast tests @ 97.8% coverage; migration applied + reversed against pg16/pgvector; slow-suite health test green; Black/ruff/pyrefly clean.*
+  *Residual (blocks M2): run `./scripts/fetch_docs.sh` (verify HP URLs) and first `docker compose up --build` locally — neither reachable from the scaffold sandbox.*
+- [ ] **2. Ingestion** — pymupdf4llm parsing, chunking, figure captioning, embeddings, pgvector writes; unit tests.
+  *Exit: `ingest` completes in Compose against the real PDFs; chunks with embeddings + tsv queryable in Postgres; fast gate green.*
+- [ ] **3. Retrieval & chat** — hybrid search, provider layer, SSE endpoint, history persistence; unit tests to ≥90%.
+  *Exit: a curl'd SSE chat answers a doc question with citations, persists history, and survives a mid-stream provider failure with a terminal `error` event.*
+- [ ] **4. Frontend** — chat UI, streaming, conversation sidebar, citations.
+  *Exit: full flow in the browser — new conversation, streamed answer with sources, history restored on reload via `X-User-Id`.*
+- [ ] **5. Evaluation** — golden dataset, benchmark runner, tune chunking/top-k.
+  *Exit: `eval/REPORT.md` committed with per-provider metrics and tuning decisions recorded; re-ranker question (§18) resolved.*
+- [ ] **6. Load tests & polish** — Locust runs, reports, README, final review.
+  *Exit: `loadtest/REPORT.md` committed with sustained req/min for both scenarios; §3 table reads Done on every row.*
 
 ---
 
