@@ -52,7 +52,7 @@ as the work they describe.
 | R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Not started |
 | R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | In progress — extension + HNSW schema migrated and verified (M1) |
 | R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | In progress — checksum pinning + fail-fast verification built (M1) |
-| R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | In progress — chunker implemented and unit-tested against the future parser's contract; pymupdf4llm wiring pending |
+| R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | In progress — chunker and pymupdf4llm parsing implemented and unit-tested; embedding/indexing wiring pending |
 | R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Not started |
 | R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Not started |
 | R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | In progress — schema migrated (M1); persistence code pending |
