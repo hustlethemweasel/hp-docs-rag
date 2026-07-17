@@ -8,3 +8,5 @@ htmlcov/
 docs/*.pdf
 node_modules/
 .next/
+.DS_Store
+.vscode/

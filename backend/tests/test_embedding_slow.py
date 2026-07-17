@@ -31,3 +31,9 @@ def test_query_instruction_changes_the_embedding(embedder):
     as_query = embedder.embed_query(text)
 
     assert as_document != as_query
+
+
+def test_count_tokens_returns_a_plausible_count(embedder):
+    count = embedder.count_tokens("Open the front cover and slide out the tray.")
+
+    assert 5 < count < 20

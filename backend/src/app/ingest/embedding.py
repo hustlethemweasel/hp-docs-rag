@@ -22,6 +22,10 @@ class Embedder:
     def embed_query(self, text: str) -> list[float]:
         return self._model.encode([text], prompt_name=QUERY_PROMPT_NAME)[0].tolist()
 
+    def count_tokens(self, text: str) -> int:
+        """Token count per the embedding model's own tokenizer (SPEC §7.2)."""
+        return len(self._model.tokenizer.encode(text))
+
 
 def load_embedder(model_name: str) -> Embedder:
     return Embedder(model=SentenceTransformer(model_name))

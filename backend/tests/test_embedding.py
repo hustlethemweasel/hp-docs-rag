@@ -36,3 +36,14 @@ def test_embed_query_applies_the_retrieval_instruction():
         ["how do I clean the printhead?"], prompt_name=QUERY_PROMPT_NAME
     )
     assert result == [0.3, 0.4]
+
+
+def test_count_tokens_uses_the_embedding_models_own_tokenizer():
+    model = create_autospec(SentenceTransformer, instance=True)
+    model.tokenizer.encode.return_value = [2, 7084, 506, 3645]
+    embedder = Embedder(model=model)
+
+    count = embedder.count_tokens("Open the front cover.")
+
+    model.tokenizer.encode.assert_called_once_with("Open the front cover.")
+    assert count == 4
