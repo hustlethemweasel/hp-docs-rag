@@ -93,7 +93,13 @@ class AnthropicCaptioner:
         caption = next(
             block.text for block in response.content if block.type == "text"
         ).strip()
-        logger.info("figure_captioned", model=self._model, caption_length=len(caption))
+        logger.info(
+            "figure_captioned",
+            model=self._model,
+            caption_length=len(caption),
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+        )
         return caption
 
 

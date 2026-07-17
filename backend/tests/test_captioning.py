@@ -13,6 +13,7 @@ from typing import Any, Literal
 import anthropic
 import httpx
 import pytest
+import structlog.testing
 
 from app.config import Settings
 from app.ingest.captioning import (
@@ -102,8 +103,12 @@ def test_sends_the_image_and_captioning_prompt_to_anthropic():
         client=anthropic_client_with(handler), model="claude-haiku-4-5"
     )
 
-    caption = captioner.caption(b"fake-png-bytes")
+    with structlog.testing.capture_logs() as logs:
+        caption = captioner.caption(b"fake-png-bytes")
 
+    [event] = [log for log in logs if log["event"] == "figure_captioned"]
+    assert event["input_tokens"] == 10
+    assert event["output_tokens"] == 10
     assert captured["url"] == "https://api.anthropic.com/v1/messages"
     assert captured["api_key"] == "test-key"
     assert captured["body"]["model"] == "claude-haiku-4-5"
