@@ -1,17 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { streamFrom } from "@/test-utils/stream";
 import { parseSSEStream } from "./sse";
-
-function streamFrom(chunks: string[]): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    start(controller) {
-      for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(chunk));
-      }
-      controller.close();
-    },
-  });
-}
 
 async function collect(stream: ReadableStream<Uint8Array>) {
   const events = [];
