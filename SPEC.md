@@ -264,7 +264,7 @@ Per the constitution (§2): development is test-driven, tests are the behavior s
 ## 12. Load Testing (R12)
 
 - **Tool:** Locust, containerized (`docker compose --profile loadtest up`).
-- **Scenarios:** (a) chat flow with `ScriptedProvider` (fixed-latency scripted streaming) — measures API + retrieval + DB scalability independent of LLM throughput; (b) chat flow with the real provider — measures realistic end-to-end throughput.
+- **Scenarios:** (a) chat flow with `ScriptedProvider` (fixed-latency scripted streaming, selected with `LLM_PROVIDER=scripted` on the `api` service under test) — measures API + retrieval + DB scalability independent of LLM throughput; (b) chat flow with the real provider — measures realistic end-to-end throughput. Both scenarios run the same `loadtest/locustfile.py` against a differently-configured `api` instance.
 - **Method:** ramp users until p95 latency exceeds threshold (e.g. 2 s for non-LLM endpoints) or error rate > 1%; report sustained **requests/minute** at that point, plus latency percentiles, for each scenario.
 - Deliverable: `loadtest/REPORT.md` with numbers, graphs, and the bottleneck analysis (expected: LLM generation dominates; retrieval scales to high RPM).
 
@@ -324,7 +324,7 @@ docker compose --profile local up --build   # fully local, no API keys
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER` | `ollama` | `anthropic` \| `openai` \| `ollama` |
+| `LLM_PROVIDER` | `ollama` | `anthropic` \| `openai` \| `ollama` \| `scripted` (fixed-latency `ScriptedProvider`, no live LLM — load-test scenario (a) in §12, never the Compose default) |
 | `LLM_MODEL` | `qwen3.5:4b` | Generation model for the selected provider |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | — | Only required for the matching cloud provider |
 | `OLLAMA_URL` | `http://ollama:11434` | Local provider endpoint |
