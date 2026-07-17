@@ -333,6 +333,7 @@ docker compose --profile local up --build   # fully local, no API keys
 | `RETRIEVAL_CANDIDATES` / `TOP_K` | `20` / `6` | Per-retriever candidates and fused context size (§8) |
 | `REFUSAL_THRESHOLD` | `0.0` | Minimum fused RRF score before answering (kept at 0 — see `eval/REPORT.md`'s tuning writeup) |
 | `DATABASE_URL` | compose-internal | asyncpg DSN |
+| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | `20` / `20` | SQLAlchemy async engine connection pool; raised from the library defaults (5/10) after `loadtest/REPORT.md` found the default pool saturating around 40-60 concurrent chat requests. The engine also sets `pool_pre_ping=True` (not configurable — always on) so a connection silently closed underneath the pool (e.g. by a cancelled/disconnected request) is discarded and replaced instead of surfacing `InterfaceError: connection is closed` to the next caller |
 | `LOG_LEVEL` | `info` | structlog level |
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | CORS-allowed origin for the browser SPA |
 
