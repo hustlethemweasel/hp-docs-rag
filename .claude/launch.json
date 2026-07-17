@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd backend && set -a && source ../.env && set +a && export DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/hpdocs && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd frontend && mise exec -- npm run dev"],
+      "port": 3000
+    }
+  ]
+}
