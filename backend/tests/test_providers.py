@@ -324,7 +324,7 @@ async def test_ollama_provider_raises_on_a_failed_request():
 
 
 def settings_for(
-    provider: Literal["anthropic", "openai", "ollama"], **overrides
+    provider: Literal["anthropic", "openai", "ollama", "scripted"], **overrides
 ) -> Settings:
     return Settings(
         llm_provider=provider, database_url="sqlite+aiosqlite://", **overrides
@@ -361,3 +361,13 @@ def test_factory_fails_fast_on_an_unimplemented_provider():
 
     with pytest.raises(NotImplementedError, match="openai"):
         build_provider(settings)
+
+
+def test_factory_builds_the_scripted_provider_with_fixed_latency():
+    settings = settings_for("scripted")
+
+    provider = build_provider(settings)
+
+    assert isinstance(provider, ScriptedProvider)
+    assert provider.tokens
+    assert provider.latency > 0

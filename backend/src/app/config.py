@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    llm_provider: Literal["anthropic", "openai", "ollama"] = "ollama"
+    llm_provider: Literal["anthropic", "openai", "ollama", "scripted"] = "ollama"
     llm_model: str = "qwen3.5:4b"
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
