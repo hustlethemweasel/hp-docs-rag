@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     database_url: str
     docs_dir: str = "/docs"
     log_level: str = "info"
+    frontend_origin: str = "http://localhost:3000"
 
 
 @lru_cache

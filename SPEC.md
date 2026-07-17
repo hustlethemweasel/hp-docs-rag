@@ -333,6 +333,7 @@ docker compose --profile local up --build   # fully local, no API keys
 | `REFUSAL_THRESHOLD` | tuned in M5 | Minimum fused score before answering |
 | `DATABASE_URL` | compose-internal | asyncpg DSN |
 | `LOG_LEVEL` | `info` | structlog level |
+| `FRONTEND_ORIGIN` | `http://localhost:3000` | CORS-allowed origin for the browser SPA |
 
 This table is the contract between Compose, the config module (Pydantic settings), and the tests.
 

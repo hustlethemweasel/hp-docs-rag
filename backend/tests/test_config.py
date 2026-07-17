@@ -18,6 +18,7 @@ _SPEC_DEFAULT_ENV_VARS = [
     "RETRIEVAL_CANDIDATES",
     "TOP_K",
     "LOG_LEVEL",
+    "FRONTEND_ORIGIN",
 ]
 
 
@@ -35,6 +36,7 @@ def test_defaults_match_spec_contract(monkeypatch):
     assert settings.retrieval_candidates == 20
     assert settings.top_k == 6
     assert settings.log_level == "info"
+    assert settings.frontend_origin == "http://localhost:3000"
 
 
 def test_environment_overrides_defaults(monkeypatch):
