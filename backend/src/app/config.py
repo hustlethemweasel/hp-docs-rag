@@ -3,6 +3,11 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# CORS is wired in main.create_app() before Settings (which requires
+# DATABASE_URL) can safely be instantiated there; this constant is the single
+# source of truth shared by both that default and this field's default.
+DEFAULT_FRONTEND_ORIGIN = "http://localhost:3000"
+
 
 class Settings(BaseSettings):
     """Configuration contract mirroring the .env.example table in SPEC.md."""
@@ -26,7 +31,7 @@ class Settings(BaseSettings):
     database_url: str
     docs_dir: str = "/docs"
     log_level: str = "info"
-    frontend_origin: str = "http://localhost:3000"
+    frontend_origin: str = DEFAULT_FRONTEND_ORIGIN
 
 
 @lru_cache
