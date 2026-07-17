@@ -88,7 +88,7 @@ as the work they describe.
 Key decisions and rationale:
 
 - **Single datastore.** pgvector lets Postgres serve as vector DB, full-text index, and relational store for chat history. One fewer container, transactional consistency between messages and retrieval logs, and it's fully open source (R5, R10).
-- **Fixed embedding model, swappable chat model.** The vector index must not change when the chat provider changes. Embeddings are always produced by a local open-source model (`sentence-transformers`, `microsoft/harrier-oss-v1-270m`, 640-dim) running inside the API container on CPU. Only the *generation* step is provider-swappable. This avoids re-indexing and dimension mismatches when switching between cloud and local LLMs.
+- **Fixed embedding model, swappable chat model.** The vector index must not change when the chat provider changes. Embeddings are always produced by a local open-source model (`sentence-transformers`, `microsoft/harrier-oss-v1-270m`, 640-dim) running inside the API container on CPU. Only the *generation* step is provider-swappable. This avoids re-indexing and dimension mismatches when switching between cloud and local LLMs. Replacing the embedding model itself (e.g. with a smaller one for faster CPU inference) is allowed only with before/after evidence from the retrieval eval (§13.1) and a full re-ingest.
 - **SSE streaming** for token-by-token responses in the chat UI.
 
 ---
@@ -277,6 +277,24 @@ Per the constitution (§2): development is test-driven, tests are the behavior s
   - *Refusal correctness* — negative cases answered with "not in the documents".
 - **Runner:** `python -m eval.run` → scores table + per-question breakdown in `eval/REPORT.md`. Also used as the regression harness when tuning chunk size, top-k, or hybrid weights.
 - **Reproducibility:** benchmark runs pin `temperature=0` (and fixed seeds where the provider supports them) so tuning comparisons are apples-to-apples rather than sampling noise.
+
+### 13.1 Retrieval eval (pulled forward from Milestone 5)
+
+A retrieval-only subset of the benchmark, needing no LLM judge, built early
+because it gates infrastructure decisions that are expensive to revisit later —
+above all **changing the embedding model**. No model swap (nor chunking change)
+ships without before/after numbers from this eval.
+
+- **Golden set:** `eval/retrieval.jsonl` — curated questions with the document
+  and page(s) where the answer lives. Question wording is written from the
+  user's perspective, not copied from the manuals, so lexical overlap doesn't
+  inflate scores. These pairs seed the full golden dataset later.
+- **Metrics:** recall@k (is an expected page in the top-k chunks?) and MRR,
+  reported for dense retrieval (embeddings) — the retriever a model swap
+  actually changes.
+- **Runner:** `python -m eval.retrieval` against an ingested database →
+  per-question hits + aggregate table; results recorded in `eval/REPORT.md`
+  when used to justify a change.
 
 ---
 
