@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import structlog
-from sqlalchemy import text
+from sqlalchemy import make_url, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
@@ -15,9 +15,32 @@ class Database:
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
 
+    @property
+    def engine(self) -> AsyncEngine:
+        return self._engine
+
     @classmethod
-    def from_url(cls, url: str) -> "Database":
-        return cls(create_async_engine(url))
+    def from_url(
+        cls,
+        url: str,
+        *,
+        pool_size: int | None = None,
+        max_overflow: int | None = None,
+    ) -> "Database":
+        # pool_size/max_overflow tune QueuePool, meaningless for SQLite's
+        # StaticPool (a single embedded-file connection, not a server pool)
+        # — SQLite rejects the kwargs outright, so they're only applied for
+        # dialects that actually pool connections.
+        pool_kwargs: dict[str, int] = {}
+        if make_url(url).get_dialect().name != "sqlite":
+            if pool_size is not None:
+                pool_kwargs["pool_size"] = pool_size
+            if max_overflow is not None:
+                pool_kwargs["max_overflow"] = max_overflow
+        # pool_pre_ping: discard a connection silently closed underneath the
+        # pool (e.g. by a cancelled/disconnected request) instead of
+        # surfacing InterfaceError on the next checkout — see loadtest/REPORT.md.
+        return cls(create_async_engine(url, pool_pre_ping=True, **pool_kwargs))
 
     @asynccontextmanager
     async def connection(self) -> AsyncGenerator[AsyncConnection]:

@@ -17,6 +17,8 @@ _SPEC_DEFAULT_ENV_VARS = [
     "CHUNK_OVERLAP",
     "RETRIEVAL_CANDIDATES",
     "TOP_K",
+    "DB_POOL_SIZE",
+    "DB_MAX_OVERFLOW",
     "LOG_LEVEL",
     "FRONTEND_ORIGIN",
 ]
@@ -35,6 +37,8 @@ def test_defaults_match_spec_contract(monkeypatch):
     assert settings.chunk_overlap == 80
     assert settings.retrieval_candidates == 20
     assert settings.top_k == 6
+    assert settings.db_pool_size == 20
+    assert settings.db_max_overflow == 20
     assert settings.log_level == "info"
     assert settings.frontend_origin == "http://localhost:3000"
 

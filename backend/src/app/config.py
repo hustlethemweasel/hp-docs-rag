@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     refusal_threshold: float = 0.0  # kept at 0 in Milestone 5 — see eval/REPORT.md
 
     database_url: str
+    # Raised from SQLAlchemy's async engine defaults (5/10) — see
+    # loadtest/REPORT.md for the saturation evidence.
+    db_pool_size: int = 20
+    db_max_overflow: int = 20
     docs_dir: str = "/docs"
     log_level: str = "info"
     frontend_origin: str = DEFAULT_FRONTEND_ORIGIN

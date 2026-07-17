@@ -18,7 +18,11 @@ from app.providers.factory import build_provider
 async def lifespan(app: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level)
-    app.state.database = Database.from_url(settings.database_url)
+    app.state.database = Database.from_url(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+    )
     app.state.provider = build_provider(settings)
     yield
     await app.state.database.dispose()
