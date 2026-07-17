@@ -2,7 +2,14 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+import anthropic
+import httpx
+
 Role = Literal["user", "assistant"]
+
+# Errors any provider may raise mid-stream; the chat service catches these
+# specifically to persist a partial message and emit a terminal error event.
+PROVIDER_ERRORS = (httpx.HTTPError, anthropic.APIError)
 
 
 @dataclass(frozen=True)

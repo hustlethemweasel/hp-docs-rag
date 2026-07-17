@@ -16,7 +16,7 @@ def format_context(chunks: list[RetrievedChunk]) -> str:
     if not chunks:
         return NO_CONTEXT_MESSAGE
     return "\n\n".join(
-        f"[{c.document}, p. {_page_label(c)}]\n{c.content}" for c in chunks
+        f"[{c.document}, p. {page_label(c)}]\n{c.content}" for c in chunks
     )
 
 
@@ -24,7 +24,7 @@ def build_system_prompt(chunks: list[RetrievedChunk]) -> str:
     return f"{SYSTEM_PROMPT}\n\nContext:\n{format_context(chunks)}"
 
 
-def _page_label(chunk: RetrievedChunk) -> str:
+def page_label(chunk: RetrievedChunk) -> str:
     if chunk.page_start == chunk.page_end:
         return str(chunk.page_start)
     return f"{chunk.page_start}-{chunk.page_end}"
