@@ -10,6 +10,10 @@ from app.main import create_app, lifespan
 
 
 async def test_lifespan_wires_real_database_and_serves_health(monkeypatch):
+    # Isolate from the developer's shell/.env: the provider must build from
+    # the spec'd default (ollama), not whatever happens to be configured.
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     get_settings.cache_clear()
     app = create_app()

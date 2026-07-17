@@ -1,7 +1,10 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 import structlog
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 logger = structlog.get_logger(__name__)
 
@@ -15,6 +18,12 @@ class Database:
     @classmethod
     def from_url(cls, url: str) -> "Database":
         return cls(create_async_engine(url))
+
+    @asynccontextmanager
+    async def connection(self) -> AsyncGenerator[AsyncConnection]:
+        """A transactional connection for one request's unit of work."""
+        async with self._engine.begin() as connection:
+            yield connection
 
     async def ping(self) -> bool:
         try:
