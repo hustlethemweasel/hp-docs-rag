@@ -65,5 +65,9 @@ show_missing = true
 project-includes = [
     "**/*.py*",
     "**/*.ipynb",
+    "../eval/**/*.py",
 ]
+# The eval package lives at the repo root, next to backend/ (repository layout
+# in SPEC.md); tests import it via a conftest sys.path entry.
+search-path = ["src", ".."]
 
