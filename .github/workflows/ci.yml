@@ -21,7 +21,7 @@ jobs:
         run: uv run ruff check src tests migrations
       - name: Types (pyrefly)
         run: uv run pyrefly check
-      - name: Fast suite + coverage gate (SPEC §11)
+      - name: Fast suite + coverage gate
         run: uv run pytest --cov=app
 
   slow-suite:

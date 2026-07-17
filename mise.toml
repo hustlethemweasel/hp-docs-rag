@@ -1,0 +1,51 @@
+min_version = "2024.1.0"
+
+[tasks.install]
+description = "Install backend dependencies"
+dir = "backend"
+run = "uv sync"
+
+[tasks.fmt]
+description = "Check Black formatting (matches CI)"
+dir = "backend"
+run = "uv run black --check src tests migrations"
+
+[tasks."fmt:fix"]
+description = "Apply Black formatting"
+dir = "backend"
+run = "uv run black src tests migrations"
+
+[tasks.lint]
+description = "Lint with ruff (matches CI)"
+dir = "backend"
+run = "uv run ruff check src tests migrations"
+
+[tasks."lint:fix"]
+description = "Lint with ruff, applying fixes"
+dir = "backend"
+run = "uv run ruff check --fix src tests migrations"
+
+[tasks.typecheck]
+description = "Type-check with pyrefly"
+dir = "backend"
+run = "uv run pyrefly check"
+
+[tasks.test]
+description = "Fast suite with the coverage gate"
+dir = "backend"
+run = "uv run pytest --cov=app"
+
+[tasks."test:slow"]
+description = "Slow suite against real Postgres (needs `docker compose up db`)"
+dir = "backend"
+env = { DATABASE_URL = "postgresql+asyncpg://app:app@localhost:5432/hpdocs" }
+run = "uv run pytest -m slow --no-cov"
+
+[tasks.check]
+description = "Full quality gate: fmt + lint + typecheck + fast suite (mirrors CI)"
+depends = ["fmt", "lint", "typecheck", "test"]
+
+[tasks.eval]
+description = "Retrieval eval against an ingested database"
+dir = "."
+run = "uv run --project backend python -m eval.retrieval"

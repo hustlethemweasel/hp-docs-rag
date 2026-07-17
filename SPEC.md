@@ -47,18 +47,18 @@ as the work they describe.
 | # | Requirement | How it's satisfied | Status |
 |---|---|---|---|
 | R1 | Frontend with GUI | Next.js (React) SPA — chat UI with history sidebar | Not started (placeholder page only) |
-| R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — skeleton + health (M1) |
-| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1 (97.8%) |
-| R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Not started |
-| R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | In progress — extension + HNSW schema migrated and verified (M1) |
-| R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | In progress — checksum pinning + fail-fast verification built (M1) |
+| R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — health endpoint (M1) + ingest job/repositories (M2); chat routes pending (M3) |
+| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1; 52 fast tests @ 95.3% coverage as of M2 |
+| R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Not started — chat provider abstraction is M3; a provider-selection factory (`anthropic`/`ollama`) already exists for figure captioning (M2), the same pattern this will follow |
+| R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | Done — HNSW schema populated with real embeddings from both PDFs and verified queryable via cosine-distance search (M2) |
+| R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | Done — checksum-gated, idempotent, verified end-to-end in Compose against both real PDFs (M2) |
 | R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | Done — full ingest pipeline verified in Compose against both real PDFs; 515 chunks (412 text + 103 figure captions) with embeddings and tsv queryable in Postgres |
-| R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Not started |
+| R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Not started — dense retrieval alone already exercised via the retrieval eval (§13.1); FTS + RRF fusion is M3 |
 | R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Not started |
-| R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | In progress — schema migrated (M1); persistence code pending |
-| R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — compose written and first boot verified locally (M1); `local`/`loadtest` profiles arrive M4/M6 |
+| R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | In progress — schema migrated (M1); persistence code pending (M3) |
+| R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — first boot (M1) and full real ingest run (M2) both verified locally; `local`/`loadtest` profiles arrive M4/M6 |
 | R12 | Load tests | Locust scenario; report requests/minute at latency thresholds (§12) | Not started |
-| R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) | Not started |
+| R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) | Not started (full benchmark) — a retrieval-only subset (recall@k/MRR, no LLM judge) was pulled forward and is live; see §13.1 and `eval/REPORT.md` |
 
 ---
 
@@ -355,16 +355,17 @@ This table is the contract between Compose, the config module (Pydantic settings
 │   └── uv.lock
 ├── frontend/              # Next.js app
 ├── docs/                  # the two HP PDFs + checksums.txt (pinned SHA-256s)
-├── eval/                  # golden.jsonl, run.py, REPORT.md
+├── eval/                  # metrics.py, retrieval.{py,jsonl} (live); golden.jsonl, run.py (M5)
 ├── loadtest/              # locustfile.py, REPORT.md
 ├── .github/workflows/     # CI: lint, types, fast suite + coverage, commitlint
 ├── docker-compose.yml
+├── mise.toml              # task runner: fmt/lint/typecheck/test/test:slow/check/eval
 ├── .env.example
 ├── SPEC.md                # this file
 └── README.md              # setup, decisions summary, results
 ```
 
-The backend uses a **src layout** managed with uv: `uv sync` installs `app` as a proper package alongside its dependencies, so tests import the installed package (no `PYTHONPATH` hacks or accidental imports of the working tree), and the Docker build is a straightforward `uv sync --frozen`.
+The backend uses a **src layout** managed with uv: `uv sync` installs `app` as a proper package alongside its dependencies, so tests import the installed package (no `PYTHONPATH` hacks or accidental imports of the working tree), and the Docker build is a straightforward `uv sync --frozen`. [mise](https://mise.jdx.dev) wraps the recurring `uv run ...` commands (formatting, linting, type-checking, both test suites, the retrieval eval) as `mise run <task>` from the repo root — a convenience layer, not a new source of truth; the raw commands still work from `backend/`.
 
 ---
 
