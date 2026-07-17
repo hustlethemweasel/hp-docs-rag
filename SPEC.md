@@ -52,7 +52,7 @@ as the work they describe.
 | R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Not started |
 | R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | In progress — extension + HNSW schema migrated and verified (M1) |
 | R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | In progress — checksum pinning + fail-fast verification built (M1) |
-| R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | In progress — full ingest pipeline (parse → chunk → embed → caption → pgvector write) implemented and passing locally against real Postgres; not yet verified in CI |
+| R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | Done — full ingest pipeline verified in Compose against both real PDFs; 515 chunks (412 text + 103 figure captions) with embeddings and tsv queryable in Postgres |
 | R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Not started |
 | R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Not started |
 | R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | In progress — schema migrated (M1); persistence code pending |
@@ -358,8 +358,9 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
 - [x] **1. Skeleton & infra** — fetch script + checksum pinning; Compose with db/api/frontend placeholders; Alembic baseline migration; health endpoint; CI pipeline (lint, pyrefly, fast suite, commitlint).
   *Exit: quality gates green; schema verified against real Postgres.*
   *Evidence: 13 fast tests @ 97.8% coverage; migration applied + reversed against pg16/pgvector; slow-suite health test green; Black/ruff/pyrefly clean; `./scripts/fetch_docs.sh` run against verified HP URLs (checksums pinned in `docs/checksums.txt`); `docker compose up --build` verified locally — db healthy, ingest verified both documents and exited 0, `GET /api/health` returned `{"status":"ok"}`, frontend placeholder served 200.*
-- [ ] **2. Ingestion** — pymupdf4llm parsing, chunking, figure captioning, embeddings, pgvector writes; unit tests.
+- [x] **2. Ingestion** — pymupdf4llm parsing, chunking, figure captioning, embeddings, pgvector writes; unit tests.
   *Exit: `ingest` completes in Compose against the real PDFs; chunks with embeddings + tsv queryable in Postgres; fast gate green.*
+  *Evidence: 46 fast tests @ 95.3% coverage; ingest ran in Compose end-to-end (exit 0, idempotent) writing 515 chunks — 412 text + 103 figure captions (deduped from 122 raw figures) — all with embeddings and tsv; FTS and cosine-distance queries return sensible chunks; captioning provider-selectable (anthropic/ollama), 103 figures in ~70s parallel via claude-haiku-4-5 (~$0.14/full re-ingest) vs ~22 min local qwen3.5:4b.*
 - [ ] **3. Retrieval & chat** — hybrid search, provider layer, SSE endpoint, history persistence; unit tests to ≥90%.
   *Exit: a curl'd SSE chat answers a doc question with citations, persists history, and survives a mid-stream provider failure with a terminal `error` event.*
 - [ ] **4. Frontend** — chat UI, streaming, conversation sidebar, citations.
