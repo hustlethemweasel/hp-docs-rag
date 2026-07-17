@@ -33,3 +33,23 @@ Notes (2026-07-17):
   Harmless for harrier's 32k context but bad for retrieval precision;
   tracked as a follow-up chunker fix (hard token-split fallback), to be
   re-evaluated here when done.
+
+## Chunker: hard token-window fallback
+
+Blocks with no sentence boundary (large markdown tables in the HP manuals)
+were passing `_split_oversized` as a single unit far above the ~450-token
+target (worst observed: 4,414 tokens with the e5 tokenizer). Added a hard
+word-window fallback in `_split_by_word_window` for units still over
+`chunk_tokens` after sentence splitting. Re-ingested and re-ran the eval:
+
+| Model | Dim | recall@6 | recall@20 | MRR | max chunk tokens |
+|---|---|---|---|---|---|
+| microsoft/harrier-oss-v1-270m | 640 | 0.958 | 0.958 | 0.833 | 450 |
+
+Notes (2026-07-17):
+
+- Max chunk size across all 522 ingested chunks is now 450 tokens (down from
+  the 4,414-token outlier); no chunk exceeds `chunk_tokens`.
+- recall@6/@20 unchanged; MRR improved slightly (0.826 → 0.833). The same
+  "How do I add more RAM to this machine?" miss remains — expected, since
+  it's a vocabulary gap, not a chunking artifact.
