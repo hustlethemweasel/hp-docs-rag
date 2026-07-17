@@ -1,12 +1,11 @@
 import asyncio
 from pathlib import Path
 
-import httpx
 import structlog
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import get_settings
-from app.ingest.captioning import OllamaCaptioner
+from app.ingest.captioning import build_captioner
 from app.ingest.embedding import load_embedder
 from app.ingest.indexing import index_all
 from app.ingest.job import MigrationRunner, run
@@ -26,10 +25,7 @@ verified = run(
 async def _index() -> None:
     engine = create_async_engine(settings.database_url)
     embedder = load_embedder(settings.embedding_model)
-    captioner = OllamaCaptioner(
-        client=httpx.Client(base_url=settings.ollama_url, timeout=120),
-        model=settings.llm_model,
-    )
+    captioner = build_captioner(settings)
     try:
         total = await index_all(
             engine,

@@ -1,21 +1,23 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.ingest.captioning import OllamaCaptioner
+from app.ingest.captioning import CAPTION_ERRORS, Captioner
 from app.ingest.checksums import VerifiedDocument
 from app.ingest.chunking import Chunk, chunk_pages
 from app.ingest.embedding import Embedder
-from app.ingest.figures import extract_figures
+from app.ingest.figures import Figure, extract_figures
 from app.ingest.parsing import parse_pdf
 from app.repositories.chunks import ChunkRepository, ChunkRow
 from app.repositories.documents import DocumentRepository
 
 logger = structlog.get_logger(__name__)
+
+CAPTION_CONCURRENCY = 8
 
 
 @dataclass
@@ -23,7 +25,7 @@ class PipelineIndexer:
     """Parse -> chunk -> embed -> caption -> write, per document (SPEC §7)."""
 
     embedder: Embedder
-    captioner: OllamaCaptioner
+    captioner: Captioner
     documents: DocumentRepository
     chunks: ChunkRepository
     chunk_tokens: int
@@ -70,35 +72,47 @@ class PipelineIndexer:
         ]
 
     def _figure_rows(self, path: Path) -> list[ChunkRow]:
-        rows = []
-        for figure in extract_figures(path):
-            try:
-                caption = self.captioner.caption(figure.image_bytes)
-            except httpx.HTTPError:
-                logger.warning(
-                    "figure_captioning_failed", page=figure.page, index=figure.index
-                )
-                continue
-            [embedding] = self.embedder.embed_documents([caption])
-            rows.append(
-                ChunkRow(
-                    content=caption,
-                    embedding=embedding,
-                    page_start=figure.page,
-                    page_end=figure.page,
-                    section=None,
-                    chunk_type="figure_caption",
-                    figure_ref=f"page-{figure.page}-fig-{figure.index}",
-                    token_count=self.embedder.count_tokens(caption),
-                )
+        figures = extract_figures(path)
+        with ThreadPoolExecutor(max_workers=CAPTION_CONCURRENCY) as pool:
+            captions = list(pool.map(self._caption_or_none, figures))
+        captioned = [
+            (figure, caption)
+            for figure, caption in zip(figures, captions, strict=True)
+            if caption is not None
+        ]
+        if not captioned:
+            return []
+        embeddings = self.embedder.embed_documents(
+            [caption for _, caption in captioned]
+        )
+        return [
+            ChunkRow(
+                content=caption,
+                embedding=embedding,
+                page_start=figure.page,
+                page_end=figure.page,
+                section=None,
+                chunk_type="figure_caption",
+                figure_ref=f"page-{figure.page}-fig-{figure.index}",
+                token_count=self.embedder.count_tokens(caption),
             )
-        return rows
+            for (figure, caption), embedding in zip(captioned, embeddings, strict=True)
+        ]
+
+    def _caption_or_none(self, figure: Figure) -> str | None:
+        try:
+            return self.captioner.caption(figure.image_bytes)
+        except CAPTION_ERRORS:
+            logger.warning(
+                "figure_captioning_failed", page=figure.page, index=figure.index
+            )
+            return None
 
 
 async def index_all(
     engine: AsyncEngine,
     embedder: Embedder,
-    captioner: OllamaCaptioner,
+    captioner: Captioner,
     verified: list[VerifiedDocument],
     *,
     chunk_tokens: int,

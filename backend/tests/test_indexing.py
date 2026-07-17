@@ -132,3 +132,30 @@ async def test_still_indexes_text_when_captioning_is_unreachable(tmp_path):
     document_id, rows = chunks.insert_many.call_args.args
     assert count == len(rows) == 1
     assert rows[0].chunk_type == "text"
+
+
+async def test_one_failed_caption_does_not_drop_the_other_figures(tmp_path):
+    doc_path = tmp_path / "envy.pdf"
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_image(
+        fitz.Rect(72, 100, 272, 300), pixmap=solid_pixmap(200, 200, (255, 0, 0))
+    )
+    page.insert_image(
+        fitz.Rect(300, 100, 500, 300), pixmap=solid_pixmap(200, 200, (0, 0, 255))
+    )
+    doc.save(str(doc_path))
+    verified = VerifiedDocument(name="envy.pdf", path=doc_path, sha256="a" * 64)
+    indexer, _, captioner, _, chunks = make_indexer()
+    captioner.caption.side_effect = [
+        httpx.ConnectError("connection refused"),
+        "A diagram of the hinge assembly.",
+    ]
+
+    count = await indexer.index(verified)
+
+    _, rows = chunks.insert_many.call_args.args
+    figure_rows = [r for r in rows if r.chunk_type == "figure_caption"]
+    assert count == len(rows)
+    assert len(figure_rows) == 1
+    assert figure_rows[0].content == "A diagram of the hinge assembly."
