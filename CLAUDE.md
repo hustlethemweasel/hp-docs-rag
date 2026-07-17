@@ -59,17 +59,16 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
   unimplemented, matching the M2 captioning factory) → history windowing +
   query rewriting → `ChatService` orchestration → SSE chat endpoint +
   conversation CRUD, all backed by real `conversations`/`messages`
-  repositories. 105 fast tests @ 92.7% coverage. Verified live (curl) against
+  repositories. 106 fast tests @ 92.8% coverage. Verified live (curl) against
   real ingested chunks and the real Anthropic provider: cited multi-turn
   answers, correct query rewriting on a pronoun follow-up, persisted history,
   and a terminal `error` event with the partial message saved as
   `status='error'` on an unreachable-provider run.
 - **Next — Milestone 4:** frontend chat UI, streaming, conversation sidebar,
   citations.
-- A separate branch (`claude/nice-visvesvaraya-bcdd96`) fixed the
-  oversized-chunk edge case the eval surfaced (sentence-less blocks, e.g.
-  large markdown tables, bypassing the ~450-token target) — not yet merged
-  into `main`; re-run `mise run eval` after merging to confirm no regression.
+- The oversized-chunk edge case the eval surfaced (sentence-less blocks, e.g.
+  large markdown tables, bypassing the ~450-token target) is fixed — a hard
+  word-window fallback in the chunker, evidence in `eval/REPORT.md`.
 
 ## Layout
 

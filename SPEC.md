@@ -48,11 +48,11 @@ as the work they describe.
 |---|---|---|---|
 | R1 | Frontend with GUI | Next.js (React) SPA — chat UI with history sidebar | Not started (placeholder page only) |
 | R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — health endpoint (M1), ingest job/repositories (M2), conversation CRUD + SSE chat routes (M3); frontend-facing polish (CORS, request-ID middleware) pending M4/M6 |
-| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1; 52 fast tests @ 95.3% coverage as of M2 |
+| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1; 106 fast tests @ 92.8% coverage as of M3 |
 | R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Done — `ChatProvider` protocol + `AnthropicProvider`/`OllamaProvider`/`ScriptedProvider`, factory reads `LLM_PROVIDER` (M3); `openai` deliberately unimplemented for now, matching the same gap in the M2 captioning factory |
 | R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | Done — HNSW schema populated with real embeddings from both PDFs and verified queryable via cosine-distance search (M2) |
 | R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | Done — checksum-gated, idempotent, verified end-to-end in Compose against both real PDFs (M2) |
-| R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | Done — full ingest pipeline verified in Compose against both real PDFs; 515 chunks (412 text + 103 figure captions) with embeddings and tsv queryable in Postgres |
+| R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | Done — full ingest pipeline verified in Compose against both real PDFs; 522 chunks (419 text + 103 figure captions) with embeddings and tsv queryable in Postgres; revised from 515 by a M3 follow-up fix (hard word-window fallback for sentence-less blocks like large tables) — see `eval/REPORT.md` |
 | R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Done — `HybridRetriever` runs dense + sparse top-20, fuses with RRF (k=60), caps at top-6, refusal-threshold guard (M3) |
 | R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Done — last 10 messages windowed into the prompt; query rewriting condenses history + question before retrieval (M3) |
 | R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | Done — schema migrated (M1); `ConversationRepository`/`MessageRepository` persist every turn, incl. partial content + `status='error'` on a mid-stream provider failure (M3) |
@@ -218,12 +218,14 @@ System prompt instructs the model to answer **only** from the provided context, 
 
 ```python
 class ChatProvider(Protocol):
-    async def stream_chat(
+    def stream_chat(
         self, messages: list[ChatMessage], **kwargs
     ) -> AsyncIterator[str]: ...
 ```
 
-Implementations: `AnthropicProvider`, `OpenAIProvider`, `OllamaProvider`, and `ScriptedProvider` — a genuine implementation of the protocol that streams pre-scripted responses with configurable latency. Per the constitution (§2), it carries no fake/mock naming because it honors the full interface and real streaming behavior; it serves the fast test suite and load-test scenario (a) in §12. A factory reads `LLM_PROVIDER` + `LLM_MODEL` env vars.
+(`def`, not `async def` — implementations are async-generator functions, whose call signature is `Callable[..., AsyncGenerator[str, None]]`; declaring the protocol method `async def` would type-check as returning a coroutine instead and reject every real implementation.)
+
+Implementations: `AnthropicProvider`, `OllamaProvider`, and `ScriptedProvider` — a genuine implementation of the protocol that streams pre-scripted responses with configurable latency. Per the constitution (§2), it carries no fake/mock naming because it honors the full interface and real streaming behavior; it serves the fast test suite and load-test scenario (a) in §12. A factory reads `LLM_PROVIDER` + `LLM_MODEL` env vars. `OpenAIProvider` is not yet implemented (M3) — same gap as the M2 captioning factory, closed if/when needed.
 
 ---
 
@@ -237,13 +239,13 @@ Implementations: `AnthropicProvider`, `OpenAIProvider`, `OllamaProvider`, and `S
 | `DELETE /api/conversations/{id}` | Delete conversation |
 | `POST /api/conversations/{id}/messages` | Send user message → **SSE stream** of tokens, final event carries sources + message ids |
 | `GET /api/health` | Liveness (DB ping, provider configured) |
-| `GET /api/documents` | Indexed documents + chunk counts (transparency/debug) |
+| `GET /api/documents` | Indexed documents + chunk counts (transparency/debug) — not yet implemented, not required by the M3 exit criterion |
 
 **SSE contract:** the message stream emits named events — `token` (text delta), `done` (terminal: sources, user/assistant message ids, latency), and `error` (terminal: emitted if the provider fails mid-stream; the partial assistant message is persisted with `status='error'` so history stays truthful, and the client renders a retry affordance). Exactly one terminal event per stream; the fast suite tests all three event types at the framing level.
 
 **User scoping:** all conversation endpoints are scoped by a client-generated UUID sent as the `X-User-Id` header (stored in the frontend's localStorage). No authentication — this is isolation, not security, per the non-goals.
 
-Conventions: Pydantic response models, structured error envelope, structlog logfmt logging with request-ID middleware, CORS restricted to the frontend origin. Exception handling follows the constitution (§2): narrow, specific `try/except` at the exact guarded operation; unforeseen errors propagate to a single top-level handler that logs and returns a 500 — never silently swallowed.
+Conventions: Pydantic response models, structured error envelope, structlog logfmt logging with request-ID middleware, CORS restricted to the frontend origin. Exception handling follows the constitution (§2): narrow, specific `try/except` at the exact guarded operation; unforeseen errors propagate to a single top-level handler that logs and returns a 500 — never silently swallowed. As of M3, routes use Pydantic response models and FastAPI's default error responses (404/422); the structured error envelope, request-ID middleware, and CORS config are frontend-facing polish deferred to M4/M6.
 
 ---
 
@@ -345,8 +347,8 @@ This table is the contract between Compose, the config module (Pydantic settings
 │   │   └── app/
 │   │       ├── main.py, config.py, db.py
 │   │       ├── ingest/        # parsing, chunking, embedding, figure captioning
-│   │       ├── rag/           # retrieval, fusion, prompts, query rewrite
-│   │       ├── providers/     # anthropic.py, openai.py, ollama.py, scripted.py
+│   │       ├── rag/           # retrieval, fusion, prompts, query rewrite, chat orchestration
+│   │       ├── providers/     # anthropic.py, ollama.py, scripted.py (openai.py: not yet needed)
 │   │       ├── api/           # routers, schemas, sse
 │   │       └── repositories/  # conversations, messages, chunks
 │   ├── tests/
@@ -382,7 +384,7 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
   *Evidence: 46 fast tests @ 95.3% coverage; ingest ran in Compose end-to-end (exit 0, idempotent) writing 515 chunks — 412 text + 103 figure captions (deduped from 122 raw figures) — all with embeddings and tsv; FTS and cosine-distance queries return sensible chunks; captioning provider-selectable (anthropic/ollama), 103 figures in ~70s parallel via claude-haiku-4-5 (~$0.14/full re-ingest) vs ~22 min local qwen3.5:4b.*
 - [x] **3. Retrieval & chat** — hybrid search, provider layer, SSE endpoint, history persistence; unit tests to ≥90%.
   *Exit: a curl'd SSE chat answers a doc question with citations, persists history, and survives a mid-stream provider failure with a terminal `error` event.*
-  *Evidence: 105 fast tests @ 92.7% coverage; verified live against real ingested chunks and the real Anthropic provider — cited, multi-page-referenced answer streamed and persisted with sources/provider/model/latency; a pronoun-resolving follow-up correctly rewrote its search query from history; an unreachable-provider run emitted a terminal `error` event with the partial content persisted as `status='error'`.*
+  *Evidence: 106 fast tests @ 92.8% coverage; verified live against real ingested chunks and the real Anthropic provider — cited, multi-page-referenced answer streamed and persisted with sources/provider/model/latency; a pronoun-resolving follow-up correctly rewrote its search query from history; an unreachable-provider run emitted a terminal `error` event with the partial content persisted as `status='error'`. Also includes a follow-up chunker fix (hard word-window fallback for sentence-less blocks; R7, `eval/REPORT.md`).*
 - [ ] **4. Frontend** — chat UI, streaming, conversation sidebar, citations.
   *Exit: full flow in the browser — new conversation, streamed answer with sources, history restored on reload via `X-User-Id`.*
 - [ ] **5. Evaluation** — golden dataset, benchmark runner, tune chunking/top-k.
