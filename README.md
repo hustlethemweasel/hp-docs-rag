@@ -6,11 +6,12 @@ specification, including the project constitution that governs how this
 codebase is built: TDD, real collaborators, truthful test doubles, fail-fast
 error handling, logfmt logging, and Conventional Commits.
 
-**Status: Milestone 4 done** — ingestion, hybrid retrieval + chat, and a
-Next.js chat UI (streaming answers, citations, conversation sidebar, history
-restored on reload) all verified end-to-end against both real HP manuals in
-Compose. Milestone 5 (evaluation: golden dataset, benchmark runner, tuning)
-is next.
+**Status: Milestone 5 done** — ingestion, hybrid retrieval + chat, a Next.js
+chat UI, and an automated response-quality benchmark are all verified
+end-to-end against both real HP manuals. The benchmark (`eval/run.py`) scores
+a 37-question golden set with RAGAS-style LLM-as-judge metrics; see
+[eval/REPORT.md](eval/REPORT.md) for results and tuning decisions. Milestone
+6 (load tests, final polish) is next.
 
 ## Quickstart
 
@@ -33,6 +34,7 @@ mise run test         # fast suite + coverage gate
 mise run test:slow    # slow suite (needs `docker compose up db`)
 mise run check        # fmt + lint + typecheck + fast suite — the full CI gate
 mise run eval         # retrieval eval against an ingested database
+mise run eval:quality # response-quality benchmark (golden set + LLM-as-judge)
 
 mise run frontend:install   # npm ci
 mise run frontend:check     # fmt + lint + typecheck + test — the full frontend gate

@@ -48,7 +48,7 @@ as the work they describe.
 |---|---|---|---|
 | R1 | Frontend with GUI | Next.js (React) SPA — chat UI with history sidebar | Done — Next.js 16 App Router SPA: conversation sidebar (create/switch/delete), streamed chat with live tokens, citation chips, history restored on reload via `X-User-Id` (M4) |
 | R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — health endpoint (M1), ingest job/repositories (M2), conversation CRUD + SSE chat routes (M3), CORS restricted to the frontend origin (M4); request-ID middleware and structured error envelope still pending M6 |
-| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1; 108 fast backend tests @ 92.8% coverage as of M4; frontend adds 37 Vitest tests (TDD discipline on real logic, not a numeric coverage target — this requirement is backend-scoped) |
+| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | Done — gate enforced in CI and green since M1; 142 fast backend tests @ 92.9% coverage as of M5 (adds the LLM-as-judge, golden-set, refusal-detection, and re-ranking-experiment tests); frontend adds 37 Vitest tests (TDD discipline on real logic, not a numeric coverage target — this requirement is backend-scoped); the response-quality benchmark (M5) is the automated answer-quality evidence referenced in §1's Goals |
 | R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Done — `ChatProvider` protocol + `AnthropicProvider`/`OllamaProvider`/`ScriptedProvider`, factory reads `LLM_PROVIDER` (M3); `openai` deliberately unimplemented for now, matching the same gap in the M2 captioning factory |
 | R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | Done — HNSW schema populated with real embeddings from both PDFs and verified queryable via cosine-distance search (M2) |
 | R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | Done — checksum-gated, idempotent, verified end-to-end in Compose against both real PDFs (M2) |
@@ -58,7 +58,7 @@ as the work they describe.
 | R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | Done — schema migrated (M1); `ConversationRepository`/`MessageRepository` persist every turn, incl. partial content + `status='error'` on a mid-stream provider failure (M3) |
 | R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — first boot (M1) and full real ingest run (M2) both verified locally; `frontend` now a real multi-stage Next.js build, image verified standalone (M4); `local`/`loadtest` profiles arrive M6 |
 | R12 | Load tests | Locust scenario; report requests/minute at latency thresholds (§12) | Not started |
-| R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) | Not started (full benchmark) — a retrieval-only subset (recall@k/MRR, no LLM judge) was pulled forward and is live; see §13.1 and `eval/REPORT.md` |
+| R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) | Done — 37-question golden set (`eval/golden.jsonl`) across factual/procedure/figure/multi-turn/negative categories; `eval/run.py` scores faithfulness, answer relevancy, context precision/recall, and refusal correctness against the real HybridRetriever + AnthropicProvider, temperature pinned to 0; results in `eval/REPORT.md` (refusal accuracy 0.973, faithfulness 0.915, relevancy 0.938, context recall 0.970) |
 
 ---
 
@@ -331,7 +331,7 @@ docker compose --profile local up --build   # fully local, no API keys
 | `EMBEDDING_MODEL` | `microsoft/harrier-oss-v1-270m` | Fixed; changing it requires re-ingestion |
 | `CHUNK_TOKENS` / `CHUNK_OVERLAP` | `450` / `80` | Chunking strategy (§7.2), tunable via benchmark |
 | `RETRIEVAL_CANDIDATES` / `TOP_K` | `20` / `6` | Per-retriever candidates and fused context size (§8) |
-| `REFUSAL_THRESHOLD` | tuned in M5 | Minimum fused score before answering |
+| `REFUSAL_THRESHOLD` | `0.0` | Minimum fused RRF score before answering (kept at 0 — see `eval/REPORT.md`'s tuning writeup) |
 | `DATABASE_URL` | compose-internal | asyncpg DSN |
 | `LOG_LEVEL` | `info` | structlog level |
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | CORS-allowed origin for the browser SPA |
@@ -359,11 +359,14 @@ This table is the contract between Compose, the config module (Pydantic settings
 │   └── uv.lock
 ├── frontend/              # Next.js app
 ├── docs/                  # the two HP PDFs + checksums.txt (pinned SHA-256s)
-├── eval/                  # metrics.py, retrieval.{py,jsonl} (live); golden.jsonl, run.py (M5)
+├── eval/                  # metrics.py, retrieval.{py,jsonl}, golden.{py,jsonl},
+│                          # judge.py, refusal.py, report.py, run.py,
+│                          # rerank_experiment.py (all live)
 ├── loadtest/              # locustfile.py, REPORT.md
 ├── .github/workflows/     # CI: lint, types, fast suite + coverage, commitlint
 ├── docker-compose.yml
-├── mise.toml              # task runner: fmt/lint/typecheck/test/test:slow/check/eval
+├── mise.toml              # task runner: fmt/lint/typecheck/test/test:slow/check/
+│                          # eval/eval:quality/eval:rerank
 ├── .env.example
 ├── SPEC.md                # this file
 └── README.md              # setup, decisions summary, results
@@ -390,8 +393,9 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
 - [x] **4. Frontend** — chat UI, streaming, conversation sidebar, citations.
   *Exit: full flow in the browser — new conversation, streamed answer with sources, history restored on reload via `X-User-Id`.*
   *Evidence: Next.js 16 App Router SPA (TypeScript, Tailwind), 37 Vitest/RTL tests covering the SSE stream parser, API client, and every component/hook. Verified live in the browser against real ingested chunks and the real Anthropic provider: created a conversation, sent an HP-doc question, watched tokens stream in and citation chips render, reloaded via direct navigation to `/c/{id}` and saw full history restore, and confirmed a second conversation appears and is switchable/deletable in the sidebar. Manual verification caught and fixed two real bugs a unit test alone wouldn't have: CORS middleware added inside `lifespan()` crashed under a real ASGI server (Starlette locks its middleware stack on the first call, including the lifespan dispatch itself — fixed by wiring it in `create_app()`), and the sidebar never refreshed after a message completed, leaving a new conversation's title blank until reload (fixed with a shared `ConversationsContext`). CORS restricted to the configured frontend origin (R2). `frontend` Compose service rebuilt as a real multi-stage Next.js build (`output: "standalone"`), verified as a standalone container. `mise run frontend:check` (fmt/lint/typecheck/test) mirrors the backend gate and runs in CI alongside it.*
-- [ ] **5. Evaluation** — golden dataset, benchmark runner, tune chunking/top-k.
+- [x] **5. Evaluation** — golden dataset, benchmark runner, tune chunking/top-k.
   *Exit: `eval/REPORT.md` committed with per-provider metrics and tuning decisions recorded; re-ranker question (§18) resolved.*
+  *Evidence: 37-question golden set (`eval/golden.jsonl`) spanning factual, procedure, figure-dependent, multi-turn, and negative cases; `eval/run.py` runs the real HybridRetriever + AnthropicProvider end to end (rewrite → retrieve → generate → LLM-judge), temperature pinned to 0, results cached per-provider under `eval/results/` and rendered into `eval/REPORT.md` (refusal accuracy 0.973, context recall 0.970, context precision 0.748, faithfulness 0.915, answer relevancy 0.938 on claude-haiku-4-5). `REFUSAL_THRESHOLD` tuning investigated two candidate signals (RRF fused score, raw dense cosine similarity) and found neither safely separates negative from positive cases in this embedding space without costing real recall — kept at 0.0; the actual gap was a too-narrow refusal-phrase list in the benchmark itself, fixed with evidence (refusal accuracy 0.919 → 0.973). Re-ranker question (§18) resolved: a cross-encoder spike (`eval/rerank_experiment.py`) showed a wash (recall@6 unchanged, MRR −0.006, context precision +0.032) — not adopted. 142 fast backend tests passing.*
 - [ ] **6. Load tests & polish** — Locust runs, reports, README, final review.
   *Exit: `loadtest/REPORT.md` committed with sustained req/min for both scenarios; §3 table reads Done on every row.*
 
@@ -408,6 +412,6 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
 
 ## 18. Open Questions
 
-- Re-ranker (cross-encoder) worth the latency? Decide via benchmark in Milestone 5.
+None outstanding.
 
-**Resolved** (recorded in the relevant sections): conversations are scoped by a client-generated UUID sent as `X-User-Id` (§6, §10); minimal GitHub Actions CI is in scope (§11, Milestone 1).
+**Resolved** (recorded in the relevant sections): conversations are scoped by a client-generated UUID sent as `X-User-Id` (§6, §10); minimal GitHub Actions CI is in scope (§11, Milestone 1); re-ranker (cross-encoder) not worth the latency — a spike showed a wash on the golden set (recall@6 unchanged, MRR −0.006, context precision +0.032), see `eval/REPORT.md` (§8, Milestone 5).

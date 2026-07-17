@@ -9,14 +9,17 @@ REWRITE_SYSTEM_PROMPT = (
 
 
 async def rewrite_query(
-    provider: ChatProvider, history: list[ChatMessage], question: str
+    provider: ChatProvider,
+    history: list[ChatMessage],
+    question: str,
+    temperature: float | None = None,
 ) -> str:
     """Condense history + question into a standalone query; skipped on turn one."""
     if not history:
         return question
     messages = [*history, ChatMessage(role="user", content=question)]
-    tokens = [
-        token
-        async for token in provider.stream_chat(messages, system=REWRITE_SYSTEM_PROMPT)
-    ]
+    kwargs: dict[str, object] = {"system": REWRITE_SYSTEM_PROMPT}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    tokens = [token async for token in provider.stream_chat(messages, **kwargs)]
     return "".join(tokens).strip()

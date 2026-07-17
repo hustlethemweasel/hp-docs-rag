@@ -18,10 +18,14 @@ class AnthropicProvider:
         self, messages: list[ChatMessage], **kwargs: object
     ) -> AsyncIterator[str]:
         system = kwargs.get("system")
+        temperature = kwargs.get("temperature")
         async with self._client.messages.stream(
             model=self._model,
             max_tokens=MAX_RESPONSE_TOKENS,
             system=system if isinstance(system, str) else anthropic.omit,
+            temperature=(
+                temperature if isinstance(temperature, int | float) else anthropic.omit
+            ),
             messages=[{"role": m.role, "content": m.content} for m in messages],
         ) as stream:
             async for text in stream.text_stream:

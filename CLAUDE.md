@@ -34,6 +34,8 @@ mise run lint:fix                        # ruff check --fix
 mise run typecheck                       # pyrefly
 mise run check                           # fmt + lint + typecheck + test — the full CI gate
 mise run eval                            # retrieval eval against an ingested database
+mise run eval:quality                    # response-quality benchmark (golden set + LLM-as-judge)
+mise run eval:rerank                     # cross-encoder re-ranker spike
 
 mise run frontend:install                # npm ci
 mise run frontend:test                   # Vitest suite
@@ -86,11 +88,30 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
   `create_app()` instead), and the sidebar didn't refresh after a message
   completed, leaving a new conversation's title blank until reload (fixed
   with a shared `ConversationsContext`).
-- **Next — Milestone 5:** golden dataset, benchmark runner, tune
-  chunking/top-k.
+- **Milestone 5 done:** 37-question golden set (`eval/golden.jsonl`) across
+  factual, procedure, figure-dependent, multi-turn, and negative categories,
+  seeded from `eval/retrieval.jsonl`. `eval/run.py` scores RAGAS-style
+  LLM-as-judge metrics (faithfulness, answer relevancy, context
+  precision/recall, refusal correctness) against the real `HybridRetriever`
+  + configured `ChatProvider`, temperature pinned to 0; results cached
+  per-provider under `eval/results/` (gitignored) and rendered into
+  `eval/REPORT.md`. Live run against claude-haiku-4-5: refusal accuracy
+  0.973, context recall 0.970, context precision 0.748, faithfulness 0.915,
+  answer relevancy 0.938. `REFUSAL_THRESHOLD` tuning investigated the fused
+  RRF score and raw dense cosine similarity as candidate signals — neither
+  cleanly separates negative from positive cases in this embedding space
+  without costing real recall, so it stays at 0; the real gap turned out to
+  be the benchmark's own refusal-phrase detector missing valid refusal
+  phrasings, fixed with before/after evidence (0.919 → 0.973). The
+  cross-encoder re-ranker open question (SPEC §18) is resolved: a spike
+  (`eval/rerank_experiment.py`) showed a wash on the golden set (recall@6
+  unchanged, MRR −0.006, context precision +0.032) — not adopted. 142 fast
+  backend tests.
 - The oversized-chunk edge case the eval surfaced (sentence-less blocks, e.g.
   large markdown tables, bypassing the ~450-token target) is fixed — a hard
   word-window fallback in the chunker, evidence in `eval/REPORT.md`.
+- **Next — Milestone 6:** Locust load tests, `loadtest/REPORT.md`, README
+  and final review.
 
 ## Layout
 
@@ -98,5 +119,5 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
 `providers/`) · `backend/tests/` — fast + slow suites · `backend/migrations/`
 — Alembic owns all DDL · `frontend/src/` — Next.js App Router SPA
 (`app/` routes, `components/`, `hooks/`, `lib/`) · `docs/` — source PDFs +
-checksums.txt · `eval/` — retrieval eval (live) and the full quality
+checksums.txt · `eval/` — retrieval eval and the full response-quality
 benchmark (Milestone 5) · `loadtest/` — arrives in Milestone 6.

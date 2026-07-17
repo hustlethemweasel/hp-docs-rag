@@ -176,6 +176,46 @@ async def test_anthropic_provider_omits_system_when_not_given():
     assert "system" not in captured["body"]
 
 
+async def test_anthropic_provider_forwards_temperature_when_given():
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            text=anthropic_sse(["hi"]),
+        )
+
+    provider = AnthropicProvider(
+        client=anthropic_client_with(handler), model="claude-haiku-4-5"
+    )
+
+    await collect(provider, [ChatMessage(role="user", content="hi")], temperature=0)
+
+    assert captured["body"]["temperature"] == 0
+
+
+async def test_anthropic_provider_omits_temperature_when_not_given():
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            text=anthropic_sse(["hi"]),
+        )
+
+    provider = AnthropicProvider(
+        client=anthropic_client_with(handler), model="claude-haiku-4-5"
+    )
+
+    await collect(provider, [ChatMessage(role="user", content="hi")])
+
+    assert "temperature" not in captured["body"]
+
+
 # --- OllamaProvider -----------------------------------------------------------
 
 
@@ -231,6 +271,40 @@ async def test_ollama_provider_skips_blank_lines_in_the_ndjson_stream():
     tokens = await collect(provider, [ChatMessage(role="user", content="hi")])
 
     assert tokens == ["Hello"]
+
+
+async def test_ollama_provider_forwards_temperature_when_given():
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(200, text=ollama_ndjson(["Hello"]))
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://ollama:11434"
+    )
+    provider = OllamaProvider(client=client, model="qwen3.5:4b")
+
+    await collect(provider, [ChatMessage(role="user", content="hi")], temperature=0)
+
+    assert captured["body"]["options"] == {"temperature": 0}
+
+
+async def test_ollama_provider_omits_options_when_no_temperature_given():
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(200, text=ollama_ndjson(["Hello"]))
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://ollama:11434"
+    )
+    provider = OllamaProvider(client=client, model="qwen3.5:4b")
+
+    await collect(provider, [ChatMessage(role="user", content="hi")])
+
+    assert "options" not in captured["body"]
 
 
 async def test_ollama_provider_raises_on_a_failed_request():

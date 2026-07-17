@@ -26,15 +26,20 @@ class OllamaProvider:
             payload_messages.append({"role": "system", "content": system})
         payload_messages += [{"role": m.role, "content": m.content} for m in messages]
 
+        payload: dict[str, object] = {
+            "model": self._model,
+            "messages": payload_messages,
+            "stream": True,
+            "think": False,
+        }
+        temperature = kwargs.get("temperature")
+        if isinstance(temperature, int | float):
+            payload["options"] = {"temperature": temperature}
+
         async with self._client.stream(
             "POST",
             "/api/chat",
-            json={
-                "model": self._model,
-                "messages": payload_messages,
-                "stream": True,
-                "think": False,
-            },
+            json=payload,
         ) as response:
             response.raise_for_status()
             async for line in response.aiter_lines():
