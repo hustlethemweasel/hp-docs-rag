@@ -6,7 +6,7 @@ module is the read/write contract repositories query against.
 
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 
 EMBEDDING_DIM = 640
 
@@ -37,4 +37,41 @@ chunks_table = sa.Table(
     sa.Column("figure_ref", sa.Text),
     sa.Column("token_count", sa.Integer, nullable=False),
     sa.Column("chunk_index", sa.Integer, nullable=False),
+)
+
+conversations_table = sa.Table(
+    "conversations",
+    metadata,
+    sa.Column(
+        "id",
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=sa.text("gen_random_uuid()"),
+    ),
+    sa.Column("user_id", UUID(as_uuid=True), nullable=False),
+    sa.Column("title", sa.Text, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+)
+
+messages_table = sa.Table(
+    "messages",
+    metadata,
+    sa.Column(
+        "id",
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=sa.text("gen_random_uuid()"),
+    ),
+    sa.Column("conversation_id", UUID(as_uuid=True), nullable=False),
+    sa.Column(
+        "role", sa.Enum("user", "assistant", name="message_role"), nullable=False
+    ),
+    sa.Column("content", sa.Text, nullable=False),
+    sa.Column("sources", JSONB),
+    sa.Column("provider", sa.Text),
+    sa.Column("model", sa.Text),
+    sa.Column("latency_ms", sa.Integer),
+    sa.Column("status", sa.Text, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
 )
