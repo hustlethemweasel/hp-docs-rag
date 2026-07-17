@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.repositories.schema import chunks_table
+from app.repositories.schema import chunks_table, documents_table
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,18 @@ class ChunkRow:
     chunk_type: str
     figure_ref: str | None
     token_count: int
+
+
+@dataclass(frozen=True)
+class RetrievedChunk:
+    chunk_id: int
+    document: str
+    content: str
+    page_start: int
+    page_end: int
+    section: str | None
+    figure_ref: str | None
+    score: float
 
 
 class ChunkRepository:
@@ -59,3 +71,56 @@ class ChunkRepository:
             for index, row in enumerate(rows)
         ]
         await self._connection.execute(stmt, params)
+
+    async def dense_search(
+        self, embedding: list[float], *, limit: int
+    ) -> list[RetrievedChunk]:
+        """Top chunks by cosine similarity (score = 1 - cosine distance)."""
+        distance = chunks_table.c.embedding.cosine_distance(embedding)
+        result = await self._connection.execute(
+            self._retrieval_select((1 - distance).label("score"))
+            .order_by(distance, chunks_table.c.id)
+            .limit(limit)
+        )
+        return [self._retrieved(row) for row in result]
+
+    async def sparse_search(self, query: str, *, limit: int) -> list[RetrievedChunk]:
+        """Top chunks by Postgres full-text rank for a websearch-style query."""
+        tsquery = sa.func.websearch_to_tsquery("english", query)
+        score = sa.func.ts_rank(chunks_table.c.tsv, tsquery)
+        result = await self._connection.execute(
+            self._retrieval_select(score.label("score"))
+            .where(chunks_table.c.tsv.op("@@")(tsquery))
+            .order_by(score.desc(), chunks_table.c.id)
+            .limit(limit)
+        )
+        return [self._retrieved(row) for row in result]
+
+    def _retrieval_select(self, score: sa.ColumnElement[float]) -> sa.Select:
+        return sa.select(
+            chunks_table.c.id,
+            documents_table.c.title,
+            chunks_table.c.content,
+            chunks_table.c.page_start,
+            chunks_table.c.page_end,
+            chunks_table.c.section,
+            chunks_table.c.figure_ref,
+            score,
+        ).join_from(
+            chunks_table,
+            documents_table,
+            chunks_table.c.document_id == documents_table.c.id,
+        )
+
+    @staticmethod
+    def _retrieved(row: sa.Row) -> RetrievedChunk:
+        return RetrievedChunk(
+            chunk_id=row.id,
+            document=row.title,
+            content=row.content,
+            page_start=row.page_start,
+            page_end=row.page_end,
+            section=row.section,
+            figure_ref=row.figure_ref,
+            score=float(row.score),
+        )
