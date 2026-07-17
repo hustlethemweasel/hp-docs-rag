@@ -34,11 +34,20 @@ mise run lint:fix                        # ruff check --fix
 mise run typecheck                       # pyrefly
 mise run check                           # fmt + lint + typecheck + test — the full CI gate
 mise run eval                            # retrieval eval against an ingested database
+
+mise run frontend:install                # npm ci
+mise run frontend:test                   # Vitest suite
+mise run frontend:fmt                    # Prettier, check-only (matches CI)
+mise run frontend:lint                   # ESLint (matches CI)
+mise run frontend:typecheck              # tsc --noEmit
+mise run frontend:check                  # fmt + lint + typecheck + test — the full frontend CI gate
 ```
 
 Equivalent raw commands still work from `backend/` if mise isn't installed
 (`uv run pytest --cov=app`, `uv run black src tests migrations`, etc.) —
-`mise.toml` is a thin wrapper, not a new source of truth.
+`mise.toml` is a thin wrapper, not a new source of truth. Same for `frontend/`
+(`npm run test`, `npm run lint`, etc.). `mise.toml` provisions Node via
+`[tools]`; no separate Node install is required.
 
 ## Status
 
@@ -64,8 +73,21 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
   answers, correct query rewriting on a pronoun follow-up, persisted history,
   and a terminal `error` event with the partial message saved as
   `status='error'` on an unreachable-provider run.
-- **Next — Milestone 4:** frontend chat UI, streaming, conversation sidebar,
-  citations.
+- **Milestone 4 done:** Next.js 16 App Router SPA — conversation sidebar
+  (create/switch/delete), streamed chat (POST-based SSE, since `EventSource`
+  can't send a body), citation chips, history restored on reload via
+  `X-User-Id`. 37 Vitest/RTL tests. CORS restricted to the frontend origin.
+  `frontend` Compose service rebuilt as a real multi-stage Next.js build.
+  Verified live in the browser against real ingested chunks and the real
+  Anthropic provider. Manual verification (not the unit suite) caught two
+  real bugs: CORS middleware added inside `lifespan()` crashed under a real
+  ASGI server (Starlette locks its middleware stack on the first call,
+  including the lifespan dispatch itself — fixed by wiring it in
+  `create_app()` instead), and the sidebar didn't refresh after a message
+  completed, leaving a new conversation's title blank until reload (fixed
+  with a shared `ConversationsContext`).
+- **Next — Milestone 5:** golden dataset, benchmark runner, tune
+  chunking/top-k.
 - The oversized-chunk edge case the eval surfaced (sentence-less blocks, e.g.
   large markdown tables, bypassing the ~450-token target) is fixed — a hard
   word-window fallback in the chunker, evidence in `eval/REPORT.md`.
@@ -74,6 +96,7 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
 
 `backend/src/app/` — application (`api/`, `ingest/`, `repositories/`, `rag/`,
 `providers/`) · `backend/tests/` — fast + slow suites · `backend/migrations/`
-— Alembic owns all DDL · `docs/` — source PDFs + checksums.txt · `eval/` —
-retrieval eval (live) and the full quality benchmark (Milestone 5) ·
-`loadtest/` — arrives in Milestone 6.
+— Alembic owns all DDL · `frontend/src/` — Next.js App Router SPA
+(`app/` routes, `components/`, `hooks/`, `lib/`) · `docs/` — source PDFs +
+checksums.txt · `eval/` — retrieval eval (live) and the full quality
+benchmark (Milestone 5) · `loadtest/` — arrives in Milestone 6.

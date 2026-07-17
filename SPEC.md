@@ -46,9 +46,9 @@ as the work they describe.
 
 | # | Requirement | How it's satisfied | Status |
 |---|---|---|---|
-| R1 | Frontend with GUI | Next.js (React) SPA — chat UI with history sidebar | Not started (placeholder page only) |
-| R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — health endpoint (M1), ingest job/repositories (M2), conversation CRUD + SSE chat routes (M3); frontend-facing polish (CORS, request-ID middleware) pending M4/M6 |
-| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1; 106 fast tests @ 92.8% coverage as of M3 |
+| R1 | Frontend with GUI | Next.js (React) SPA — chat UI with history sidebar | Done — Next.js 16 App Router SPA: conversation sidebar (create/switch/delete), streamed chat with live tokens, citation chips, history restored on reload via `X-User-Id` (M4) |
+| R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — health endpoint (M1), ingest job/repositories (M2), conversation CRUD + SSE chat routes (M3), CORS restricted to the frontend origin (M4); request-ID middleware and structured error envelope still pending M6 |
+| R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1; 108 fast backend tests @ 92.8% coverage as of M4; frontend adds 37 Vitest tests (TDD discipline on real logic, not a numeric coverage target — this requirement is backend-scoped) |
 | R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Done — `ChatProvider` protocol + `AnthropicProvider`/`OllamaProvider`/`ScriptedProvider`, factory reads `LLM_PROVIDER` (M3); `openai` deliberately unimplemented for now, matching the same gap in the M2 captioning factory |
 | R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | Done — HNSW schema populated with real embeddings from both PDFs and verified queryable via cosine-distance search (M2) |
 | R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | Done — checksum-gated, idempotent, verified end-to-end in Compose against both real PDFs (M2) |
@@ -56,7 +56,7 @@ as the work they describe.
 | R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Done — `HybridRetriever` runs dense + sparse top-20, fuses with RRF (k=60), caps at top-6, refusal-threshold guard (M3) |
 | R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Done — last 10 messages windowed into the prompt; query rewriting condenses history + question before retrieval (M3) |
 | R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | Done — schema migrated (M1); `ConversationRepository`/`MessageRepository` persist every turn, incl. partial content + `status='error'` on a mid-stream provider failure (M3) |
-| R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — first boot (M1) and full real ingest run (M2) both verified locally; `local`/`loadtest` profiles arrive M4/M6 |
+| R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — first boot (M1) and full real ingest run (M2) both verified locally; `frontend` now a real multi-stage Next.js build, image verified standalone (M4); `local`/`loadtest` profiles arrive M6 |
 | R12 | Load tests | Locust scenario; report requests/minute at latency thresholds (§12) | Not started |
 | R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) | Not started (full benchmark) — a retrieval-only subset (recall@k/MRR, no LLM judge) was pulled forward and is live; see §13.1 and `eval/REPORT.md` |
 
@@ -245,7 +245,7 @@ Implementations: `AnthropicProvider`, `OllamaProvider`, and `ScriptedProvider` �
 
 **User scoping:** all conversation endpoints are scoped by a client-generated UUID sent as the `X-User-Id` header (stored in the frontend's localStorage). No authentication — this is isolation, not security, per the non-goals.
 
-Conventions: Pydantic response models, structured error envelope, structlog logfmt logging with request-ID middleware, CORS restricted to the frontend origin. Exception handling follows the constitution (§2): narrow, specific `try/except` at the exact guarded operation; unforeseen errors propagate to a single top-level handler that logs and returns a 500 — never silently swallowed. As of M3, routes use Pydantic response models and FastAPI's default error responses (404/422); the structured error envelope, request-ID middleware, and CORS config are frontend-facing polish deferred to M4/M6.
+Conventions: Pydantic response models, structured error envelope, structlog logfmt logging with request-ID middleware, CORS restricted to the frontend origin. Exception handling follows the constitution (§2): narrow, specific `try/except` at the exact guarded operation; unforeseen errors propagate to a single top-level handler that logs and returns a 500 — never silently swallowed. As of M4, routes use Pydantic response models and FastAPI's default error responses (404/422), and CORS is restricted to the configured frontend origin; the structured error envelope and request-ID middleware are remaining polish deferred to M6.
 
 ---
 
@@ -257,6 +257,7 @@ Per the constitution (§2): development is test-driven, tests are the behavior s
 - **Slow suite (integration)** — simulates the actual application as closely as possible: repositories against a real Postgres + pgvector instance, ingestion on the real PDFs, and the full chat flow end-to-end inside Compose with the local model. Marked `slow`; run before every delivery and in CI.
 - **Coverage:** `pytest --cov=app --cov-fail-under=90` gated on the fast suite (the "unit tests" of R3), with combined fast+slow coverage also reported. Logic is kept out of I/O modules (thin routers, thin repositories) so the fast suite clears the gate on real behavior rather than on mocked ceremony. Report committed as artifact/README badge.
 - **CI:** GitHub Actions on every push/PR — Black check, ruff, pyrefly, fast suite with the coverage gate, and commitlint enforcing the §2 commit-type allowlist (no `chore`). The slow suite runs on PRs to `main`.
+- **Frontend:** Vitest + React Testing Library, TDD'd for real logic (the SSE stream parser, the API client, data-fetching hooks) and lighter render/interaction tests for components with non-trivial behavior. No numeric coverage gate — R3 is a backend requirement — but `npm run test` runs in CI alongside Prettier, ESLint, and `tsc --noEmit`.
 
 ---
 
@@ -386,8 +387,9 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
 - [x] **3. Retrieval & chat** — hybrid search, provider layer, SSE endpoint, history persistence; unit tests to ≥90%.
   *Exit: a curl'd SSE chat answers a doc question with citations, persists history, and survives a mid-stream provider failure with a terminal `error` event.*
   *Evidence: 106 fast tests @ 92.8% coverage; verified live against real ingested chunks and the real Anthropic provider — cited, multi-page-referenced answer streamed and persisted with sources/provider/model/latency; a pronoun-resolving follow-up correctly rewrote its search query from history; an unreachable-provider run emitted a terminal `error` event with the partial content persisted as `status='error'`. Also includes a follow-up chunker fix (hard word-window fallback for sentence-less blocks; R7, `eval/REPORT.md`).*
-- [ ] **4. Frontend** — chat UI, streaming, conversation sidebar, citations.
+- [x] **4. Frontend** — chat UI, streaming, conversation sidebar, citations.
   *Exit: full flow in the browser — new conversation, streamed answer with sources, history restored on reload via `X-User-Id`.*
+  *Evidence: Next.js 16 App Router SPA (TypeScript, Tailwind), 37 Vitest/RTL tests covering the SSE stream parser, API client, and every component/hook. Verified live in the browser against real ingested chunks and the real Anthropic provider: created a conversation, sent an HP-doc question, watched tokens stream in and citation chips render, reloaded via direct navigation to `/c/{id}` and saw full history restore, and confirmed a second conversation appears and is switchable/deletable in the sidebar. Manual verification caught and fixed two real bugs a unit test alone wouldn't have: CORS middleware added inside `lifespan()` crashed under a real ASGI server (Starlette locks its middleware stack on the first call, including the lifespan dispatch itself — fixed by wiring it in `create_app()`), and the sidebar never refreshed after a message completed, leaving a new conversation's title blank until reload (fixed with a shared `ConversationsContext`). CORS restricted to the configured frontend origin (R2). `frontend` Compose service rebuilt as a real multi-stage Next.js build (`output: "standalone"`), verified as a standalone container. `mise run frontend:check` (fmt/lint/typecheck/test) mirrors the backend gate and runs in CI alongside it.*
 - [ ] **5. Evaluation** — golden dataset, benchmark runner, tune chunking/top-k.
   *Exit: `eval/REPORT.md` committed with per-provider metrics and tuning decisions recorded; re-ranker question (§18) resolved.*
 - [ ] **6. Load tests & polish** — Locust runs, reports, README, final review.
