@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/apiClient";
+import { api, ApiError } from "@/lib/apiClient";
 import type { ConversationSummary } from "@/lib/types";
 
 export function useConversations() {
@@ -9,8 +9,14 @@ export function useConversations() {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const list = await api.listConversations();
-    setConversations(list);
+    try {
+      const list = await api.listConversations();
+      setConversations(list);
+    } catch (err) {
+      if (!(err instanceof ApiError)) throw err;
+      // A failed list fetch shouldn't crash the app; the sidebar just keeps
+      // showing whatever it last successfully loaded.
+    }
   }, []);
 
   useEffect(() => {

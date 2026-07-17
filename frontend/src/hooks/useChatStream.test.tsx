@@ -70,6 +70,23 @@ describe("useChatStream", () => {
     expect(result.current.error).toBe("provider unreachable");
   });
 
+  it("calls onSettled once the stream finishes, success or error", async () => {
+    const stream = streamFrom([
+      'event: token\ndata: {"text":"Hi"}\n\n',
+      'event: done\ndata: {"sources":[],"user_message_id":"u1","assistant_message_id":"a1","latency_ms":5}\n\n',
+    ]);
+    vi.mocked(fetch).mockResolvedValue(new Response(stream, { status: 200 }));
+    const onSettled = vi.fn();
+
+    const { result } = renderHook(() => useChatStream("conv-1", [], onSettled));
+
+    act(() => {
+      void result.current.send("hi");
+    });
+
+    await waitFor(() => expect(onSettled).toHaveBeenCalledTimes(1));
+  });
+
   it("starts from the conversation's existing history", () => {
     const existing = [
       {

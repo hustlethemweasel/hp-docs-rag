@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/apiClient";
+import { useConversationsContext } from "@/hooks/ConversationsContext";
 import type { ConversationDetail } from "@/lib/types";
 import { ChatPanel } from "./ChatPanel";
 
@@ -11,6 +12,7 @@ export function ConversationView({
 }: {
   conversationId: string;
 }) {
+  const { refresh } = useConversationsContext();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
 
@@ -56,6 +58,7 @@ export function ConversationView({
     <ChatPanel
       conversationId={conversationId}
       initialMessages={detail.messages}
+      onMessageSettled={refresh}
     />
   );
 }

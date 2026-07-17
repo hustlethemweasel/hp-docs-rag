@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useConversations } from "@/hooks/useConversations";
+import { useConversationsContext } from "@/hooks/ConversationsContext";
 
 export function Sidebar({ activeId }: { activeId?: string }) {
   const router = useRouter();
-  const { conversations, loading, create, remove } = useConversations();
+  const { conversations, loading, create, remove } = useConversationsContext();
 
   async function handleNew() {
     const summary = await create();
@@ -48,10 +48,10 @@ export function Sidebar({ activeId }: { activeId?: string }) {
                       : "hover:bg-black/[.04] dark:hover:bg-white/[.06]"
                   }`}
                 >
-                  {c.title}
+                  {c.title || "New conversation"}
                 </Link>
                 <button
-                  aria-label={`Delete ${c.title}`}
+                  aria-label={`Delete ${c.title || "New conversation"}`}
                   onClick={() => handleDelete(c.id)}
                   className="shrink-0 rounded px-1.5 py-1 text-sm text-zinc-500 opacity-0 hover:bg-black/[.06] group-hover:opacity-100 dark:hover:bg-white/[.1]"
                 >

@@ -30,6 +30,7 @@ function placeholderMessage(role: Message["role"], content: string): Message {
 export function useChatStream(
   conversationId: string,
   initialMessages: Message[],
+  onSettled?: () => void,
 ) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [sending, setSending] = useState(false);
@@ -83,9 +84,10 @@ export function useChatStream(
         setError(err instanceof Error ? err.message : "failed to send message");
       } finally {
         setSending(false);
+        onSettled?.();
       }
     },
-    [conversationId],
+    [conversationId, onSettled],
   );
 
   return { messages, sending, error, send };

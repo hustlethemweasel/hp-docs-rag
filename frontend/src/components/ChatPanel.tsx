@@ -8,13 +8,16 @@ import { MessageBubble } from "./MessageBubble";
 export function ChatPanel({
   conversationId,
   initialMessages,
+  onMessageSettled,
 }: {
   conversationId: string;
   initialMessages: Message[];
+  onMessageSettled?: () => void;
 }) {
   const { messages, sending, error, send } = useChatStream(
     conversationId,
     initialMessages,
+    onMessageSettled,
   );
 
   return (

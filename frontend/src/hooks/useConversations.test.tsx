@@ -27,6 +27,17 @@ describe("useConversations", () => {
     expect(result.current.conversations).toEqual(summaries);
   });
 
+  it("survives a failed list fetch without throwing, keeping loading resolved", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response("db unreachable", { status: 500 }),
+    );
+
+    const { result } = renderHook(() => useConversations());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.conversations).toEqual([]);
+  });
+
   it("prepends a newly created conversation", async () => {
     const existing = [{ id: "1", title: "First", updated_at: "2026-01-01" }];
     const created = {

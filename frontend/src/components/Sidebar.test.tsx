@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ConversationsProvider } from "@/hooks/ConversationsContext";
 import { Sidebar } from "./Sidebar";
 
 const push = vi.fn();
@@ -10,6 +11,14 @@ vi.mock("next/navigation", () => ({
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
+}
+
+function renderSidebar(activeId?: string) {
+  return render(
+    <ConversationsProvider>
+      <Sidebar activeId={activeId} />
+    </ConversationsProvider>,
+  );
 }
 
 describe("Sidebar", () => {
@@ -31,7 +40,7 @@ describe("Sidebar", () => {
       ]),
     );
 
-    render(<Sidebar activeId="2" />);
+    renderSidebar("2");
 
     expect(await screen.findByText("First chat")).toBeInTheDocument();
     const activeLink = screen.getByRole("link", { name: "Second chat" });
@@ -48,7 +57,7 @@ describe("Sidebar", () => {
         ),
       );
 
-    render(<Sidebar />);
+    renderSidebar();
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
 
     await userEvent.click(
@@ -67,7 +76,7 @@ describe("Sidebar", () => {
       )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    render(<Sidebar activeId="1" />);
+    renderSidebar("1");
     await screen.findByText("First chat");
 
     await userEvent.click(
