@@ -6,9 +6,11 @@ specification, including the project constitution that governs how this
 codebase is built: TDD, real collaborators, truthful test doubles, fail-fast
 error handling, logfmt logging, and Conventional Commits.
 
-**Status: Milestone 2 done** — ingestion pipeline (parsing, chunking,
-embeddings, figure captioning, pgvector writes) verified end-to-end against
-both real HP manuals in Compose. Milestone 3 (retrieval + chat) is next.
+**Status: Milestone 4 done** — ingestion, hybrid retrieval + chat, and a
+Next.js chat UI (streaming answers, citations, conversation sidebar, history
+restored on reload) all verified end-to-end against both real HP manuals in
+Compose. Milestone 5 (evaluation: golden dataset, benchmark runner, tuning)
+is next.
 
 ## Quickstart
 
@@ -31,6 +33,9 @@ mise run test         # fast suite + coverage gate
 mise run test:slow    # slow suite (needs `docker compose up db`)
 mise run check        # fmt + lint + typecheck + fast suite — the full CI gate
 mise run eval         # retrieval eval against an ingested database
+
+mise run frontend:install   # npm ci
+mise run frontend:check     # fmt + lint + typecheck + test — the full frontend gate
 ```
 
 Without mise, the equivalent commands run from `backend/` — see
