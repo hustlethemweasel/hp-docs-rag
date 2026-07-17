@@ -110,8 +110,21 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
 - The oversized-chunk edge case the eval surfaced (sentence-less blocks, e.g.
   large markdown tables, bypassing the ~450-token target) is fixed — a hard
   word-window fallback in the chunker, evidence in `eval/REPORT.md`.
-- **Next — Milestone 6:** Locust load tests, `loadtest/REPORT.md`, README
-  and final review.
+- **Milestone 6 done:** `RequestIDMiddleware` + structured error envelope
+  closed R2. `loadtest/locustfile.py` drives the real conversation-create +
+  SSE chat flow; a `locust` Compose service (`loadtest` profile) runs it
+  headless. `LLM_PROVIDER=scripted` makes `ScriptedProvider` selectable on a
+  live `api` for load-test scenario (a). That first run caught a real bug —
+  synchronous query embedding blocking uvicorn's single-process event loop
+  for *all* concurrent requests, not just embedding ones — fixed with a TDD
+  interleaving test (`asyncio.to_thread`). Full ramp, before/after evidence,
+  and scenario (b) (real claude-haiku-4-5 provider) results are in
+  `loadtest/REPORT.md`: scenario (a) sustains ~541 req/min within threshold
+  (20 users), saturating ~800–835 req/min against the default SQLAlchemy
+  connection pool (flagged as a follow-up, not fixed under load-test time
+  pressure); scenario (b) confirms LLM generation dominates (p95 ~8.5s),
+  ~208 req/min at 10 users, zero errors. 149 fast backend tests @ 93.3%
+  coverage. SPEC.md §3's requirements table reads Done on every row.
 
 ## Layout
 
@@ -120,4 +133,5 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
 — Alembic owns all DDL · `frontend/src/` — Next.js App Router SPA
 (`app/` routes, `components/`, `hooks/`, `lib/`) · `docs/` — source PDFs +
 checksums.txt · `eval/` — retrieval eval and the full response-quality
-benchmark (Milestone 5) · `loadtest/` — arrives in Milestone 6.
+benchmark (Milestone 5) · `loadtest/` — Locust scenario + `REPORT.md`
+(Milestone 6).
