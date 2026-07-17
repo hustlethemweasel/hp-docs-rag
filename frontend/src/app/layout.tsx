@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "HP Docs RAG ChatBot",
-  description: "Ask questions about the HP ENVY 6000 and OMEN 17.3\" guides.",
+  description: 'Ask questions about the HP ENVY 6000 and OMEN 17.3" guides.',
 };
 
 export default function RootLayout({
