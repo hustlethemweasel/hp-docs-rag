@@ -1,9 +1,9 @@
-"""Behavior: structure-aware recursive chunking with overlap (SPEC §7.2).
+"""Behavior: structure-aware recursive chunking with overlap.
 
 Real collaborators: the chunker operates on plain ParsedPage fixtures (the
 contract the future pymupdf4llm parser will produce) and a real, explicit
-word-count token counter — not the harrier tokenizer (wired in §7.3), but a
-genuine, deterministic counting strategy, not a double.
+word-count token counter — not the harrier tokenizer, which is wired in via the
+real embedder elsewhere — a genuine, deterministic strategy, not a double.
 """
 
 from app.ingest.chunking import Chunk, ParsedPage, chunk_pages

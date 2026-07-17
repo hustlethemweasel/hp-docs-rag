@@ -1,4 +1,4 @@
-"""Behavior: pymupdf4llm parsing with light cleaning (SPEC §7.1).
+"""Behavior: pymupdf4llm parsing with light cleaning.
 
 Real collaborators: real PyMuPDF-built PDFs on disk (tmp_path), real
 pymupdf4llm markdown conversion. No doubles — heading detection and

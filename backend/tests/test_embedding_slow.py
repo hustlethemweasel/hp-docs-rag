@@ -1,4 +1,4 @@
-"""Slow suite: the real harrier-oss-v1-270m model (SPEC §7.3, §11).
+"""Slow suite: the real harrier-oss-v1-270m model.
 
 Downloads/loads real weights; confirms the asymmetric encoding contract
 actually holds against the real model, not just the wrapper's call shape.

@@ -7,7 +7,7 @@ logger = structlog.get_logger(__name__)
 
 
 class Database:
-    """Thin boundary around the async engine (kept logic-free per SPEC §11)."""
+    """Thin boundary around the async engine, kept logic-free per the constitution."""
 
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine

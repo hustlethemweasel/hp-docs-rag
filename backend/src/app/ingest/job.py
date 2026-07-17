@@ -20,7 +20,7 @@ class MigrationRunner:
 
 
 def run(migrations: MigrationRunner, docs_dir: Path) -> list[VerifiedDocument]:
-    """Apply schema migrations, then verify pinned documents (SPEC §7).
+    """Apply schema migrations, then verify pinned documents.
 
     Document indexing (parse → chunk → embed) arrives in Milestone 2.
     """

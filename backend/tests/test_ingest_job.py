@@ -1,5 +1,5 @@
 """Behavior: the ingest job applies migrations, then verifies pinned documents,
-in that order, and fails fast if verification fails (SPEC §7).
+in that order, and fails fast if verification fails.
 
 The migration runner is an external-process boundary, doubled with autospec;
 checksum verification runs for real against tmp_path files.

@@ -1,6 +1,6 @@
 """Slow suite: the full parse->chunk->embed->caption->write pipeline against
 real Postgres, the real harrier embedder, and real Ollama captioning
-(SPEC §7, §11).
+
 """
 
 import os

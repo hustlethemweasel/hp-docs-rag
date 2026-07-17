@@ -13,7 +13,7 @@ _MULTI_SPACE_RE = re.compile(r"[ \t]{2,}")
 
 
 def parse_pdf(path: Path, *, boilerplate_threshold: float = 0.5) -> list[ParsedPage]:
-    """Parse a PDF into per-page markdown with light cleaning (SPEC §7.1).
+    """Parse a PDF into per-page markdown with light cleaning.
 
     Heading/structure detection and hyphenation repair are handled by
     pymupdf4llm's layout analysis; this module drops repeated headers/footers

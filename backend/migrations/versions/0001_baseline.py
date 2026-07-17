@@ -1,4 +1,4 @@
-"""Baseline schema per SPEC.md §6.
+"""Baseline schema per the data model in SPEC.md.
 
 Revision ID: 0001
 Revises:

@@ -23,7 +23,7 @@ class ChunkRepository:
         self._connection = connection
 
     async def insert_many(self, document_id: int, rows: list[ChunkRow]) -> None:
-        """Bulk-insert chunks, computing tsv server-side (SPEC §7.3).
+        """Bulk-insert chunks, computing tsv server-side.
 
         chunk_index is assigned from row order, not carried by ChunkRow, so
         callers don't have to keep an external counter in sync.

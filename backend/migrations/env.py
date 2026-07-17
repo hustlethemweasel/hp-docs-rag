@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.config import get_settings
 
 config = context.config
-target_metadata = None  # migrations are hand-written against SPEC §6
+target_metadata = None  # migrations are hand-written against the data model in SPEC.md
 
 
 def run_migrations_offline() -> None:

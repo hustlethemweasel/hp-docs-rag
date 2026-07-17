@@ -18,7 +18,7 @@ CAPTION_PROMPT = (
 MAX_CAPTION_TOKENS = 1024
 
 # Errors any captioner may raise for a single figure; ingestion skips the
-# figure and continues rather than losing the whole document (SPEC §7.4).
+# figure and continues rather than losing the whole document.
 CAPTION_ERRORS = (httpx.HTTPError, anthropic.APIError)
 
 
@@ -27,7 +27,7 @@ class Captioner(Protocol):
 
 
 class OllamaCaptioner:
-    """Offline VLM figure captioning via Ollama (SPEC §7.4).
+    """Offline VLM figure captioning via Ollama.
 
     `think: false` is required — qwen3.5:4b is a reasoning model that, left
     to its default, spends the whole call on hidden thinking tokens and
@@ -62,7 +62,7 @@ class OllamaCaptioner:
 
 
 class AnthropicCaptioner:
-    """Cloud VLM figure captioning via the Anthropic API (SPEC §7.4)."""
+    """Cloud VLM figure captioning via the Anthropic API."""
 
     def __init__(self, client: anthropic.Anthropic, model: str) -> None:
         self._client = client
@@ -104,7 +104,7 @@ class AnthropicCaptioner:
 
 
 def build_captioner(settings: Settings) -> Captioner:
-    """Select the captioning provider from LLM_PROVIDER (SPEC §7.4, §14)."""
+    """Select the captioning provider from LLM_PROVIDER."""
     if settings.llm_provider == "anthropic":
         if not settings.anthropic_api_key:
             raise ValueError("LLM_PROVIDER=anthropic requires ANTHROPIC_API_KEY")

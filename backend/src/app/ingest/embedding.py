@@ -5,7 +5,7 @@ QUERY_PROMPT_NAME = "web_search_query"
 
 
 class Embedder:
-    """Asymmetric wrapper around the fixed embedding model (SPEC §7.3).
+    """Asymmetric wrapper around the fixed embedding model.
 
     Documents are encoded plain; queries get the model's retrieval-task
     instruction prompt. Omitting it measurably degrades retrieval, so this
@@ -23,7 +23,7 @@ class Embedder:
         return self._model.encode([text], prompt_name=QUERY_PROMPT_NAME)[0].tolist()
 
     def count_tokens(self, text: str) -> int:
-        """Token count per the embedding model's own tokenizer (SPEC §7.2)."""
+        """Token count per the embedding model's own tokenizer."""
         return len(self._model.tokenizer.encode(text))
 
 

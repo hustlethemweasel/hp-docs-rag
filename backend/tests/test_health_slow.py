@@ -1,4 +1,4 @@
-"""Slow suite: the real application against a real PostgreSQL (SPEC §11).
+"""Slow suite: the real application against a real PostgreSQL.
 
 Requires DATABASE_URL pointing at a reachable Postgres with migrations applied.
 Run with: pytest -m slow

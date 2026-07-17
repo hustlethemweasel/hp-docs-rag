@@ -1,4 +1,4 @@
-"""Slow suite: real figure extraction + real Ollama captioning (SPEC §7.4, §11).
+"""Slow suite: real figure extraction + real Ollama captioning.
 
 Requires a reachable Ollama with qwen3.5:4b pulled, and the real HP ENVY PDF
 checked into docs/.

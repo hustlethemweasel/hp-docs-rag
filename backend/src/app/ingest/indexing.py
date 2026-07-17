@@ -22,7 +22,7 @@ CAPTION_CONCURRENCY = 8
 
 @dataclass
 class PipelineIndexer:
-    """Parse -> chunk -> embed -> caption -> write, per document (SPEC §7)."""
+    """Parse -> chunk -> embed -> caption -> write, per document."""
 
     embedder: Embedder
     captioner: Captioner

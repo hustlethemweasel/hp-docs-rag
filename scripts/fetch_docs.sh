@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch the two HP source documents and pin their SHA-256s (SPEC §7).
+# Fetch the two HP source documents and pin their SHA-256s.
 # Run once from the repo root: ./scripts/fetch_docs.sh
 set -euo pipefail
 

@@ -1,4 +1,4 @@
-"""Slow suite: repositories against a real Postgres + pgvector (SPEC §11).
+"""Slow suite: repositories against a real Postgres + pgvector.
 
 Requires DATABASE_URL pointing at a reachable Postgres with migrations
 applied. Run with: pytest -m slow

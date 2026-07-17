@@ -1,4 +1,4 @@
-"""Behavior: ingest verifies pinned SHA-256s of the source documents (SPEC §7).
+"""Behavior: ingest verifies pinned SHA-256s of the source documents.
 
 Real collaborators: actual files on disk in tmp_path, actual hashing. No doubles.
 """

@@ -1,4 +1,4 @@
-"""Behavior: caption figures via the configured provider (SPEC §7.4).
+"""Behavior: caption figures via the configured provider.
 
 Real collaborators: real httpx / anthropic-SDK clients against
 httpx.MockTransport — a genuine request/response round trip through each

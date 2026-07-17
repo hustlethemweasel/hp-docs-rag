@@ -1,5 +1,5 @@
 """Behavior: extract figures from a PDF, filtering decorative images by size
-(SPEC §7.4). Real collaborators: real PyMuPDF-built PDFs on disk (tmp_path).
+Real collaborators: real PyMuPDF-built PDFs on disk (tmp_path).
 """
 
 import fitz
@@ -68,6 +68,23 @@ def test_image_bytes_are_valid_png(tmp_path):
     [figure] = extract_figures(pdf_path, min_dimension=100)
 
     assert figure.image_bytes.startswith(b"\x89PNG")
+
+
+def test_the_same_image_reused_across_pages_is_extracted_once(tmp_path):
+    pdf_path = tmp_path / "doc.pdf"
+    logo = solid_pixmap(150, 150, (7, 7, 7))
+    build_pdf(
+        pdf_path,
+        [
+            [(logo, fitz.Rect(50, 50, 200, 200))],
+            [(logo, fitz.Rect(50, 50, 200, 200))],
+        ],
+    )
+
+    figures = extract_figures(pdf_path, min_dimension=100)
+
+    assert len(figures) == 1
+    assert figures[0].page == 1
 
 
 def test_cmyk_images_are_converted_to_a_valid_png(tmp_path):

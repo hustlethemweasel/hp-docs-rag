@@ -1,4 +1,4 @@
-"""Behavior: parse -> chunk -> embed -> caption -> write orchestration (SPEC §7).
+"""Behavior: parse -> chunk -> embed -> caption -> write orchestration.
 
 Real collaborators: a real synthetic PDF on disk, real parsing/chunking/figure
 extraction. The embedder, captioner, and repositories are the genuine external

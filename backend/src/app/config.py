@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Configuration contract per SPEC.md §14 (.env.example table)."""
+    """Configuration contract mirroring the .env.example table in SPEC.md."""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

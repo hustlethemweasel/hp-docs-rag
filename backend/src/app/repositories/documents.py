@@ -9,7 +9,7 @@ class DocumentRepository:
         self._connection = connection
 
     async def is_indexed(self, filename: str, sha256: str) -> bool:
-        """Idempotency check (SPEC §7): already-indexed documents are skipped."""
+        """Idempotency check: already-indexed documents are skipped."""
         result = await self._connection.execute(
             sa.select(documents_table.c.id).where(
                 documents_table.c.filename == filename,

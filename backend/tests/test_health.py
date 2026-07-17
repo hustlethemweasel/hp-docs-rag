@@ -1,6 +1,6 @@
 """Behavior: GET /api/health reports liveness and database readiness.
 
-The fast suite is self-contained (constitution §2): the database boundary is
+The fast suite is self-contained (per the constitution): the database boundary is
 replaced with an autospec'd double that honors the real Database interface.
 """
 

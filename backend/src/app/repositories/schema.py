@@ -1,7 +1,7 @@
 """SQLAlchemy Core tables mirroring migrations/versions/0001_baseline.py.
 
 Deliberately decoupled from the migration: migrations own DDL history, this
-module is the read/write contract repositories query against (SPEC §11).
+module is the read/write contract repositories query against.
 """
 
 import sqlalchemy as sa

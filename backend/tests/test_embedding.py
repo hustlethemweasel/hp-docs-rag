@@ -1,4 +1,4 @@
-"""Behavior: asymmetric embedding encoding (SPEC §7.3).
+"""Behavior: asymmetric embedding encoding.
 
 Queries must be encoded with a retrieval task instruction; documents are
 encoded plain. sentence_transformers.SentenceTransformer is the external

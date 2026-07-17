@@ -4,7 +4,7 @@ import structlog
 
 
 def configure_logging(level: str) -> None:
-    """Judicious structured logging in logfmt (constitution §2, item 5)."""
+    """Structured logfmt logging: log decisions and boundaries, not noise."""
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

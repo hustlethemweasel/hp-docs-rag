@@ -8,7 +8,7 @@ _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
 @dataclass(frozen=True)
 class ParsedPage:
-    """A single page of parsed markdown, as pymupdf4llm will produce (SPEC §7.1)."""
+    """A single page of parsed markdown, as pymupdf4llm will produce."""
 
     number: int
     markdown: str
@@ -40,7 +40,7 @@ def chunk_pages(
     chunk_overlap: int,
     count_tokens: Callable[[str], int],
 ) -> list[Chunk]:
-    """Structure-aware recursive chunking with overlap (SPEC §7.2).
+    """Structure-aware recursive chunking with overlap.
 
     Splits first on detected heading boundaries so a chunk never spans two
     sections, then recursively windows paragraphs (falling back to sentences

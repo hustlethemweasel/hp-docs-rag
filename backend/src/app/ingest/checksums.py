@@ -27,7 +27,7 @@ class VerifiedDocument:
 def verify_checksums(docs_dir: Path) -> list[VerifiedDocument]:
     """Verify every pinned document in docs_dir against checksums.txt.
 
-    Fails fast (constitution §2, item 4): any mismatch or missing file raises
+    Fails fast (constitution): any mismatch or missing file raises
     before ingestion touches the database.
     """
     checksums_path = docs_dir / CHECKSUMS_FILENAME

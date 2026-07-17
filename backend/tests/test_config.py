@@ -1,6 +1,6 @@
 """Behavior: configuration is read from the environment with spec'd defaults.
 
-The .env.example table in SPEC.md §14 is the contract; these tests hold the
+The .env.example table in SPEC.md is the contract; these tests hold the
 config module to it.
 """
 
