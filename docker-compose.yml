@@ -23,6 +23,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://app:app@db:5432/hpdocs
     volumes:
       - ./docs:/docs:ro
+      # Embedding-model weights download once per machine, not once per boot
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       db:
         condition: service_healthy
@@ -32,6 +34,8 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://app:app@db:5432/hpdocs
+    volumes:
+      - hf_cache:/root/.cache/huggingface
     ports:
       - "8000:8000"
     depends_on:
@@ -60,3 +64,4 @@ services:
 volumes:
   pgdata:
   ollama:
+  hf_cache:

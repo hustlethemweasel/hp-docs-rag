@@ -377,7 +377,7 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
 - **PDF extraction quality** (tables, multi-column layouts) → PyMuPDF + cleaning heuristics; verify worst pages manually; benchmark catches retrieval gaps.
 - **Local model quality** (4B model weaker at grounding than cloud models) → strict prompt + refusal threshold; benchmark reports per-provider scores honestly.
 - **90% coverage on async/streaming code** → design for testability (thin routers, injectable providers/embedders), `ScriptedProvider` honoring the real streaming interface, SSE unit-tested at the framing level.
-- **Embedding model download size in Docker** → bake model weights into the backend image at build time for offline, reproducible startup.
+- **Embedding model download size in Docker** → a named `hf_cache` volume persists the Hugging Face cache across container rebuilds, so weights download once per machine (optionally authenticated via `HF_TOKEN` to avoid rate limits). Baking weights into the image was rejected: without a published registry image it re-downloads on every build anyway, and bloats the image.
 
 ---
 
