@@ -47,15 +47,15 @@ as the work they describe.
 | # | Requirement | How it's satisfied | Status |
 |---|---|---|---|
 | R1 | Frontend with GUI | Next.js (React) SPA — chat UI with history sidebar | Not started (placeholder page only) |
-| R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — health endpoint (M1) + ingest job/repositories (M2); chat routes pending (M3) |
+| R2 | Backend in Python with FastAPI | FastAPI app, async, Pydantic v2 models | In progress — health endpoint (M1), ingest job/repositories (M2), conversation CRUD + SSE chat routes (M3); frontend-facing polish (CORS, request-ID middleware) pending M4/M6 |
 | R3 | Unit tests ≥90% coverage | pytest + pytest-cov, `--cov-fail-under=90` enforced | In progress — gate enforced in CI and green since M1; 52 fast tests @ 95.3% coverage as of M2 |
-| R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Not started — chat provider abstraction is M3; a provider-selection factory (`anthropic`/`ollama`) already exists for figure captioning (M2), the same pattern this will follow |
+| R4 | Cloud or local models | Provider abstraction: `anthropic` / `openai` / `ollama`, chosen via env var | Done — `ChatProvider` protocol + `AnthropicProvider`/`OllamaProvider`/`ScriptedProvider`, factory reads `LLM_PROVIDER` (M3); `openai` deliberately unimplemented for now, matching the same gap in the M2 captioning factory |
 | R5 | Open-source vector DB | PostgreSQL 16 + pgvector extension | Done — HNSW schema populated with real embeddings from both PDFs and verified queryable via cosine-distance search (M2) |
 | R6 | Only the attached documents | Ingestion pipeline reads exactly the two PDFs baked into the repo | Done — checksum-gated, idempotent, verified end-to-end in Compose against both real PDFs (M2) |
 | R7 | Chunking strategy | Heading/structure-aware recursive chunking with overlap (§7.2) | Done — full ingest pipeline verified in Compose against both real PDFs; 515 chunks (412 text + 103 figure captions) with embeddings and tsv queryable in Postgres |
-| R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Not started — dense retrieval alone already exercised via the retrieval eval (§13.1); FTS + RRF fusion is M3 |
-| R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Not started |
-| R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | In progress — schema migrated (M1); persistence code pending (M3) |
+| R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Done — `HybridRetriever` runs dense + sparse top-20, fuses with RRF (k=60), caps at top-6, refusal-threshold guard (M3) |
+| R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Done — last 10 messages windowed into the prompt; query rewriting condenses history + question before retrieval (M3) |
+| R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | Done — schema migrated (M1); `ConversationRepository`/`MessageRepository` persist every turn, incl. partial content + `status='error'` on a mid-stream provider failure (M3) |
 | R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — first boot (M1) and full real ingest run (M2) both verified locally; `local`/`loadtest` profiles arrive M4/M6 |
 | R12 | Load tests | Locust scenario; report requests/minute at latency thresholds (§12) | Not started |
 | R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) | Not started (full benchmark) — a retrieval-only subset (recall@k/MRR, no LLM judge) was pulled forward and is live; see §13.1 and `eval/REPORT.md` |
@@ -380,8 +380,9 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
 - [x] **2. Ingestion** — pymupdf4llm parsing, chunking, figure captioning, embeddings, pgvector writes; unit tests.
   *Exit: `ingest` completes in Compose against the real PDFs; chunks with embeddings + tsv queryable in Postgres; fast gate green.*
   *Evidence: 46 fast tests @ 95.3% coverage; ingest ran in Compose end-to-end (exit 0, idempotent) writing 515 chunks — 412 text + 103 figure captions (deduped from 122 raw figures) — all with embeddings and tsv; FTS and cosine-distance queries return sensible chunks; captioning provider-selectable (anthropic/ollama), 103 figures in ~70s parallel via claude-haiku-4-5 (~$0.14/full re-ingest) vs ~22 min local qwen3.5:4b.*
-- [ ] **3. Retrieval & chat** — hybrid search, provider layer, SSE endpoint, history persistence; unit tests to ≥90%.
+- [x] **3. Retrieval & chat** — hybrid search, provider layer, SSE endpoint, history persistence; unit tests to ≥90%.
   *Exit: a curl'd SSE chat answers a doc question with citations, persists history, and survives a mid-stream provider failure with a terminal `error` event.*
+  *Evidence: 105 fast tests @ 92.7% coverage; verified live against real ingested chunks and the real Anthropic provider — cited, multi-page-referenced answer streamed and persisted with sources/provider/model/latency; a pronoun-resolving follow-up correctly rewrote its search query from history; an unreachable-provider run emitted a terminal `error` event with the partial content persisted as `status='error'`.*
 - [ ] **4. Frontend** — chat UI, streaming, conversation sidebar, citations.
   *Exit: full flow in the browser — new conversation, streamed answer with sources, history restored on reload via `X-User-Id`.*
 - [ ] **5. Evaluation** — golden dataset, benchmark runner, tune chunking/top-k.

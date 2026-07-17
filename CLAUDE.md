@@ -53,17 +53,28 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
   eval (`eval/`) was pulled forward from Milestone 5 to gate model/chunking
   changes with recall@k/MRR evidence before they ship — see `eval/REPORT.md`
   for the harrier-vs-e5-small-v2 decision.
-- **Next — Milestone 3:** hybrid search (dense + Postgres FTS, RRF fusion),
-  `ChatProvider` abstraction (+ `ScriptedProvider` for the fast suite and
-  load tests), SSE chat endpoint, conversation history persistence.
-- A background task is fixing an oversized-chunk edge case the eval surfaced
-  (sentence-less blocks, e.g. large markdown tables, bypassing the ~450-token
-  target) — re-run `mise run eval` after it lands to confirm no regression.
+- **Milestone 3 done:** `HybridRetriever` (dense + Postgres FTS, RRF fusion
+  k=60, top-6, refusal-threshold guard) → `ChatProvider` abstraction
+  (`AnthropicProvider`, `OllamaProvider`, `ScriptedProvider`; `openai` still
+  unimplemented, matching the M2 captioning factory) → history windowing +
+  query rewriting → `ChatService` orchestration → SSE chat endpoint +
+  conversation CRUD, all backed by real `conversations`/`messages`
+  repositories. 105 fast tests @ 92.7% coverage. Verified live (curl) against
+  real ingested chunks and the real Anthropic provider: cited multi-turn
+  answers, correct query rewriting on a pronoun follow-up, persisted history,
+  and a terminal `error` event with the partial message saved as
+  `status='error'` on an unreachable-provider run.
+- **Next — Milestone 4:** frontend chat UI, streaming, conversation sidebar,
+  citations.
+- A separate branch (`claude/nice-visvesvaraya-bcdd96`) fixed the
+  oversized-chunk edge case the eval surfaced (sentence-less blocks, e.g.
+  large markdown tables, bypassing the ~450-token target) — not yet merged
+  into `main`; re-run `mise run eval` after merging to confirm no regression.
 
 ## Layout
 
-`backend/src/app/` — application (`api/`, `ingest/`, `repositories/`; `rag/`
-and `providers/` arrive in Milestone 3) · `backend/tests/` — fast + slow
-suites · `backend/migrations/` — Alembic owns all DDL · `docs/` — source PDFs
-+ checksums.txt · `eval/` — retrieval eval (live) and the full quality
-benchmark (Milestone 5) · `loadtest/` — arrives in Milestone 6.
+`backend/src/app/` — application (`api/`, `ingest/`, `repositories/`, `rag/`,
+`providers/`) · `backend/tests/` — fast + slow suites · `backend/migrations/`
+— Alembic owns all DDL · `docs/` — source PDFs + checksums.txt · `eval/` —
+retrieval eval (live) and the full quality benchmark (Milestone 5) ·
+`loadtest/` — arrives in Milestone 6.
