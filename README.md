@@ -6,12 +6,18 @@ specification, including the project constitution that governs how this
 codebase is built: TDD, real collaborators, truthful test doubles, fail-fast
 error handling, logfmt logging, and Conventional Commits.
 
-**Status: Milestone 5 done** — ingestion, hybrid retrieval + chat, a Next.js
-chat UI, and an automated response-quality benchmark are all verified
-end-to-end against both real HP manuals. The benchmark (`eval/run.py`) scores
-a 37-question golden set with RAGAS-style LLM-as-judge metrics; see
-[eval/REPORT.md](eval/REPORT.md) for results and tuning decisions. Milestone
-6 (load tests, final polish) is next.
+**Status: all 6 milestones done** — ingestion, hybrid retrieval + chat, a
+Next.js chat UI, an automated response-quality benchmark, and load testing
+are all verified end-to-end against both real HP manuals. The response-quality
+benchmark (`eval/run.py`) scores a 37-question golden set with RAGAS-style
+LLM-as-judge metrics; see [eval/REPORT.md](eval/REPORT.md) for results and
+tuning decisions. Load testing (`loadtest/locustfile.py`, Locust) exercises
+the real conversation-create + SSE chat flow against a live API instance; see
+[loadtest/REPORT.md](loadtest/REPORT.md) for sustained throughput, latency
+percentiles, and bottleneck analysis for both scenarios — including a real
+bug the load test caught and fixed (synchronous query embedding blocking the
+API's event loop). See [SPEC.md](SPEC.md) §16 for the full milestone history
+and §3 for the requirements traceability table (all Done).
 
 ## Quickstart
 
@@ -23,6 +29,21 @@ docker compose --profile local up --build    # fully local, no API keys
 ```
 
 Backend: http://localhost:8000/api/health · Frontend: http://localhost:3000
+
+## Load testing
+
+```bash
+docker compose --profile loadtest run --rm --no-deps locust \
+  -f /mnt/locust/locustfile.py --headless \
+  --users 20 --spawn-rate 2 --run-time 3m \
+  --csv /mnt/locust/results/run --host http://api:8000
+```
+
+Requires `api` already running (see Quickstart). Set `LLM_PROVIDER=scripted`
+in `.env` and rebuild `api` first to run the scenario that isolates
+API/retrieval/DB scalability from LLM throughput (scenario (a) in
+[loadtest/REPORT.md](loadtest/REPORT.md)); leave it on the real provider for
+realistic end-to-end numbers (scenario (b)).
 
 ## Development
 
