@@ -153,3 +153,19 @@ def test_oversized_paragraph_splits_on_sentence_boundaries():
     assert len(chunks) > 1
     for chunk in chunks:
         assert chunk.content.strip().endswith(".")
+
+
+def test_oversized_block_without_sentence_boundaries_falls_back_to_word_window():
+    # A markdown table has no sentence-ending punctuation, so sentence
+    # splitting can't break it up; a hard token-window fallback must still
+    # keep every resulting chunk within chunk_tokens.
+    row = " | ".join(f"cell{i}" for i in range(200))
+    markdown = "# Specifications\n\n" + row
+    pages = [ParsedPage(number=1, markdown=markdown)]
+
+    chunks = chunk_pages(
+        pages, chunk_tokens=50, chunk_overlap=10, count_tokens=word_count
+    )
+
+    assert len(chunks) > 1
+    assert all(c.token_count <= 50 for c in chunks)

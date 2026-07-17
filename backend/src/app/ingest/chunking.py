@@ -98,10 +98,49 @@ def _split_oversized(
             continue
         for sentence in _SENTENCE_RE.split(para.text):
             sentence = sentence.strip()
-            if sentence:
+            if not sentence:
+                continue
+            sentence_tokens = count_tokens(sentence)
+            if sentence_tokens <= chunk_tokens:
                 units.append(
-                    _Unit(page=para.page, text=sentence, tokens=count_tokens(sentence))
+                    _Unit(page=para.page, text=sentence, tokens=sentence_tokens)
                 )
+            else:
+                units.extend(
+                    _split_by_word_window(
+                        para.page, sentence, chunk_tokens, count_tokens
+                    )
+                )
+    return units
+
+
+def _split_by_word_window(
+    page: int, text: str, chunk_tokens: int, count_tokens: Callable[[str], int]
+) -> list[_Unit]:
+    """Hard fallback for a unit with no sentence boundary (e.g. a table row).
+
+    Greedily packs whitespace-delimited words into windows, re-measuring with
+    the real token counter after each word so it still respects chunk_tokens
+    even when tokens don't map 1:1 to words.
+    """
+    units: list[_Unit] = []
+    words = text.split()
+    window: list[str] = []
+    for word in words:
+        candidate = window + [word]
+        if window and count_tokens(" ".join(candidate)) > chunk_tokens:
+            window_text = " ".join(window)
+            units.append(
+                _Unit(page=page, text=window_text, tokens=count_tokens(window_text))
+            )
+            window = [word]
+        else:
+            window = candidate
+    if window:
+        window_text = " ".join(window)
+        units.append(
+            _Unit(page=page, text=window_text, tokens=count_tokens(window_text))
+        )
     return units
 
 
