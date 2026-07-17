@@ -56,7 +56,7 @@ as the work they describe.
 | R8 | Search strategy | Hybrid retrieval: dense (cosine) + sparse (Postgres FTS), fused with RRF (§8) | Not started |
 | R9 | Conversation with chat history | Rolling window of prior turns injected into the prompt | Not started |
 | R10 | Store chats/history in backend | `conversations` and `messages` tables in Postgres | In progress — schema migrated (M1); persistence code pending |
-| R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — compose written (M1); first boot not yet verified |
+| R11 | Docker Compose | `frontend`, `api`, `db`, optional `ollama` services + one-shot `ingest` job | In progress — compose written and first boot verified locally (M1); `local`/`loadtest` profiles arrive M4/M6 |
 | R12 | Load tests | Locust scenario; report requests/minute at latency thresholds (§12) | Not started |
 | R13 | Benchmark response quality | Golden Q&A set + RAGAS-style metrics with LLM-as-judge (§13) | Not started |
 
@@ -357,8 +357,7 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
 
 - [x] **1. Skeleton & infra** — fetch script + checksum pinning; Compose with db/api/frontend placeholders; Alembic baseline migration; health endpoint; CI pipeline (lint, pyrefly, fast suite, commitlint).
   *Exit: quality gates green; schema verified against real Postgres.*
-  *Evidence: 13 fast tests @ 97.8% coverage; migration applied + reversed against pg16/pgvector; slow-suite health test green; Black/ruff/pyrefly clean.*
-  *Residual (blocks M2): run `./scripts/fetch_docs.sh` (verify HP URLs) and first `docker compose up --build` locally — neither reachable from the scaffold sandbox.*
+  *Evidence: 13 fast tests @ 97.8% coverage; migration applied + reversed against pg16/pgvector; slow-suite health test green; Black/ruff/pyrefly clean; `./scripts/fetch_docs.sh` run against verified HP URLs (checksums pinned in `docs/checksums.txt`); `docker compose up --build` verified locally — db healthy, ingest verified both documents and exited 0, `GET /api/health` returned `{"status":"ok"}`, frontend placeholder served 200.*
 - [ ] **2. Ingestion** — pymupdf4llm parsing, chunking, figure captioning, embeddings, pgvector writes; unit tests.
   *Exit: `ingest` completes in Compose against the real PDFs; chunks with embeddings + tsv queryable in Postgres; fast gate green.*
 - [ ] **3. Retrieval & chat** — hybrid search, provider layer, SSE endpoint, history persistence; unit tests to ≥90%.
