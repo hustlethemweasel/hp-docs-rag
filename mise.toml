@@ -55,3 +55,37 @@ depends = ["fmt", "lint", "typecheck", "test"]
 description = "Retrieval eval against an ingested database"
 dir = "."
 run = "uv run --project backend python -m eval.retrieval"
+
+[tasks."frontend:install"]
+description = "Install frontend dependencies"
+dir = "frontend"
+run = "npm ci"
+
+[tasks."frontend:fmt"]
+description = "Check Prettier formatting (matches CI)"
+dir = "frontend"
+run = "npm run fmt"
+
+[tasks."frontend:fmt:fix"]
+description = "Apply Prettier formatting"
+dir = "frontend"
+run = "npm run fmt:fix"
+
+[tasks."frontend:lint"]
+description = "Lint with ESLint (matches CI)"
+dir = "frontend"
+run = "npm run lint"
+
+[tasks."frontend:typecheck"]
+description = "Type-check with tsc"
+dir = "frontend"
+run = "npm run typecheck"
+
+[tasks."frontend:test"]
+description = "Vitest suite"
+dir = "frontend"
+run = "npm run test"
+
+[tasks."frontend:check"]
+description = "Full frontend quality gate: fmt + lint + typecheck + test (mirrors CI)"
+depends = ["frontend:fmt", "frontend:lint", "frontend:typecheck", "frontend:test"]
