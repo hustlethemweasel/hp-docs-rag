@@ -6,8 +6,25 @@ config module to it.
 
 from app.config import Settings
 
+# Fields under test here have spec'd defaults; clearing their env vars keeps
+# this hermetic regardless of what's exported in the developer's shell or
+# loaded from the repo's .env by mise.
+_SPEC_DEFAULT_ENV_VARS = [
+    "LLM_PROVIDER",
+    "LLM_MODEL",
+    "EMBEDDING_MODEL",
+    "CHUNK_TOKENS",
+    "CHUNK_OVERLAP",
+    "RETRIEVAL_CANDIDATES",
+    "TOP_K",
+    "LOG_LEVEL",
+]
 
-def test_defaults_match_spec_contract():
+
+def test_defaults_match_spec_contract(monkeypatch):
+    for var in _SPEC_DEFAULT_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+
     settings = Settings(database_url="postgresql+asyncpg://x/y")
 
     assert settings.llm_provider == "ollama"

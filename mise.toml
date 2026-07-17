@@ -1,5 +1,8 @@
 min_version = "2024.1.0"
 
+[env]
+_.file = ".env"
+
 [tasks.install]
 description = "Install backend dependencies"
 dir = "backend"
