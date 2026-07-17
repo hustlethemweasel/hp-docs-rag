@@ -6,6 +6,8 @@ the real external boundaries (model weights, DB) — doubled with
 create_autospec per the constitution.
 """
 
+import asyncio
+import time
 from unittest.mock import create_autospec
 
 from app.ingest.embedding import Embedder
@@ -105,3 +107,31 @@ async def test_no_results_from_either_retriever_returns_empty():
     results = await retriever.retrieve("query")
 
     assert results == []
+
+
+async def test_embedding_runs_off_the_event_loop_so_other_requests_stay_responsive():
+    """The embedding model's `.encode()` is CPU-bound and synchronous; calling
+    it directly inside `retrieve()` would stall the whole single-process
+    event loop for every concurrent request, not just the one embedding a
+    query. It must run in a worker thread instead (a load test caught this:
+    unrelated conversation list/create latency degraded under chat traffic).
+    """
+    order: list[str] = []
+
+    def slow_embed_query(query: str) -> list[float]:
+        time.sleep(0.05)
+        order.append("embed_done")
+        return [0.1] * 640
+
+    retriever, embedder, chunks = make_retriever()
+    embedder.embed_query.side_effect = slow_embed_query
+    chunks.dense_search.return_value = []
+    chunks.sparse_search.return_value = []
+
+    async def tick() -> None:
+        await asyncio.sleep(0)
+        order.append("tick")
+
+    await asyncio.gather(retriever.retrieve("query"), tick())
+
+    assert order == ["tick", "embed_done"]

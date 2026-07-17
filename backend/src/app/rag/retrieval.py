@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, replace
 
 from app.ingest.embedding import Embedder
@@ -16,7 +17,9 @@ class HybridRetriever:
     refusal_threshold: float
 
     async def retrieve(self, query: str) -> list[RetrievedChunk]:
-        embedding = self.embedder.embed_query(query)
+        # CPU-bound and synchronous (sentence-transformers on CPU); run off
+        # the event loop so it doesn't stall unrelated concurrent requests.
+        embedding = await asyncio.to_thread(self.embedder.embed_query, query)
         dense = await self.chunks.dense_search(embedding, limit=self.candidates)
         sparse = await self.chunks.sparse_search(query, limit=self.candidates)
 
