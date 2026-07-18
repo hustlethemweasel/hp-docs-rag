@@ -29,7 +29,9 @@ Notes (2026-07-17):
   card question fell to rank 8, paper jam to rank 6) — and 9 chunks exceeded
   its 512-token input limit, which would be silently truncated. Not worth the
   quality trade now that the HF cache volume removes the repeated-download
-  pain of the larger model.
+  pain of the larger model. (This trial predated the chunker fix below, so
+  the truncation handicapped e5 specifically — re-trialed fairly on
+  2026-07-18 with identical results; see "e5-small-v2 re-trial" below.)
 - The trial surfaced a latent chunking issue independent of model choice:
   blocks with no sentence boundaries (large markdown tables) can produce
   chunks far above the ~450-token target — the worst was 4,414 tokens.
@@ -282,3 +284,47 @@ Notes (2026-07-18):
   through the hybrid path. No adoption decision to revisit — hybrid is
   production; this section replaces the assumption behind it with a
   measurement and an honest note about the set's coverage.
+
+## e5-small-v2 re-trial (fair conditions, post chunker fix)
+
+The original e5 trial above was contaminated in e5's disfavor: it ran
+under the buggy chunker, whose sentence-less oversized blocks (up to
+4,414 tokens) were silently truncated at e5's 512-token input limit while
+harrier's 32k context absorbed them whole. The chunker fix eliminated
+truncation entirely, but only harrier was re-measured afterward — so the
+rejection verdict rested on a comparison where the winner had a
+structural advantage. The stakes also rose after the decision was made:
+load testing later showed query embedding is the API's serialized CPU
+bottleneck, making e5's ~20x faster CPU inference worth a fair verdict.
+
+Methodology (in-memory harness, not committed per spike hygiene — this
+section is the durable record): real `parse_pdf` (printed-page numbers) +
+real `chunk_pages` at the production 450/80 config counting with e5's own
+tokenizer (528 text chunks); the 103 production figure captions pulled
+from the live DB so e5 retrieves over the same text+caption corpus
+production does (631 total); e5's `query:`/`passage:` asymmetric
+prefixes; normalized cosine, dense top-20; same `eval.metrics` and
+current printed-page golden set. Verified: max chunk 450 e5-tokens,
+**zero** over the 512 limit.
+
+| | recall@6 | recall@20 | MRR |
+|---|---|---|---|
+| e5-small-v2, original trial (truncation-contaminated) | 0.917 | 0.958 | 0.731 |
+| e5-small-v2, fair re-trial (zero truncation) | 0.917 | 0.958 | 0.731 |
+| harrier (current, dense) | **0.958** | 0.958 | **0.833** |
+
+Notes (2026-07-18):
+
+- **Identical to three decimals — the truncation artifact had no
+  measurable effect.** Even the per-question regressions reproduce
+  exactly: wifi-card question at rank 8, paper jam at rank 6, `f-add-ram`
+  still the shared miss. The truncated chunks evidently weren't answer
+  chunks for any golden question.
+- **The rejection stands, now on clean evidence.** e5's loss is genuine
+  model quality, not an artifact — and the MRR gap versus current harrier
+  is wider than originally recorded (0.731 vs 0.833, −0.102) because
+  harrier gained from the chunker fix while e5's fair-conditions numbers
+  didn't move. The load-test performance incentive (embedding is the
+  serialized CPU bottleneck) doesn't buy back −0.041 recall@6 and −0.102
+  MRR; if that bottleneck ever needs addressing, it's a
+  concurrency/hardware problem before it's a model-swap problem.
