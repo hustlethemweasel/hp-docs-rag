@@ -362,13 +362,12 @@ This table is the contract between Compose, the config module (Pydantic settings
 ├── frontend/              # Next.js app
 ├── docs/                  # the two HP PDFs + checksums.txt (pinned SHA-256s)
 ├── eval/                  # metrics.py, retrieval.{py,jsonl}, golden.{py,jsonl},
-│                          # judge.py, refusal.py, report.py, run.py,
-│                          # rerank_experiment.py (all live)
+│                          # judge.py, refusal.py, report.py, run.py (all live)
 ├── loadtest/              # locustfile.py, REPORT.md
 ├── .github/workflows/     # CI: lint, types, fast suite + coverage, commitlint
 ├── docker-compose.yml
 ├── mise.toml              # task runner: fmt/lint/typecheck/test/test:slow/check/
-│                          # eval/eval:quality/eval:rerank
+│                          # eval/eval:quality
 ├── .env.example
 ├── SPEC.md                # this file
 └── README.md              # setup, decisions summary, results
@@ -417,4 +416,4 @@ commit that satisfies it. In-progress work is visible as red tests (TDD).
 
 None outstanding.
 
-**Resolved** (recorded in the relevant sections): conversations are scoped by a client-generated UUID sent as `X-User-Id` (§6, §10); minimal GitHub Actions CI is in scope (§11, Milestone 1); re-ranker (cross-encoder) not worth the latency — a spike showed a wash on the golden set (recall@6 unchanged, MRR −0.006, context precision +0.032), see `eval/REPORT.md` (§8, Milestone 5).
+**Resolved** (recorded in the relevant sections): conversations are scoped by a client-generated UUID sent as `X-User-Id` (§6, §10); minimal GitHub Actions CI is in scope (§11, Milestone 1); re-ranker (cross-encoder) not worth the latency — a spike showed a wash on the golden set (recall@6 unchanged, MRR −0.006, context precision +0.032), see `eval/REPORT.md` (§8, Milestone 5). The spike's code was removed from the tree after the decision, per standard spike hygiene — the evidence outlives the experiment, the experiment doesn't ship. To rerun it (e.g. if a future embedding/chunking change meaningfully lowers recall@6), restore `eval/rerank_experiment.py` and `backend/tests/test_eval_rerank.py` from commit `f1b92a9`.
