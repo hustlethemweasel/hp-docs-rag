@@ -1,9 +1,11 @@
 # Retrieval Eval Report
 
-Dense-retrieval quality on the golden set (`retrieval.jsonl`, 24 questions),
-per the retrieval eval described in SPEC.md. Run with
+Retrieval quality on the golden set (`retrieval.jsonl`, 24 questions), per
+the retrieval eval described in SPEC.md. Run with
 `uv run --project backend python -m eval.retrieval` against a fully ingested
-database.
+database. Originally dense-only (the gate for embedding-model swaps); since
+2026-07-18 the runner also reports the full hybrid pipeline — see "Hybrid
+vs. dense" below.
 
 ## Baseline and candidates
 
@@ -18,8 +20,9 @@ Notes (2026-07-17):
 - The one shared miss — "How do I add more RAM to this machine?" — is a
   vocabulary gap: the OMEN guide only says "memory module", and dense
   retrieval doesn't bridge the paraphrase within the top 20. Kept in the set
-  as an honest hard case; hybrid FTS+RRF retrieval (Milestone 3) is the
-  intended mitigation.
+  as an honest hard case. (Hybrid FTS+RRF was the intended mitigation here,
+  but later measurement showed it doesn't help — "RAM" doesn't lexically
+  match "memory module" either; see "Hybrid vs. dense" below.)
 - e5-small-v2 was trialed for its size (~130MB vs ~1GB; ~20x faster CPU
   embedding) via an in-memory index re-chunked with e5's tokenizer and the
   same golden set. It lost measurably — recall@6 −0.041, MRR −0.095 (the wifi
@@ -238,3 +241,44 @@ LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the respo
 | neg-return-policy | negative | ✗ | — | — | — | — |
 
 </details>
+
+## Hybrid vs. dense (measuring the hybrid-search rationale)
+
+The report's headline numbers were dense-only, the quality benchmark's
+context metrics were hybrid, and no direct comparison on the same question
+set existed anywhere — SPEC's hybrid rationale (exact tokens like part
+numbers and error codes favor keyword search) had never been measured. The
+runner now reports both, dense via the real `ChunkRepository`, hybrid via
+the real production `HybridRetriever` (`top_k` widened to 20 only so
+recall@20 is measurable; rank order is unaffected):
+
+| | recall@6 | recall@20 | MRR |
+|---|---|---|---|
+| dense only | 0.958 | 0.958 | 0.833 |
+| hybrid (dense + FTS, RRF k=60) | 0.958 | 0.958 | **0.835** |
+
+Notes (2026-07-18):
+
+- **A wash on aggregate, as honest measurement.** 21 of 24 questions have
+  identical ranks under both. The spare-part-number question improves
+  (rank 3 → 2 — the one exact-token query in the set, directionally
+  consistent with the rationale), the double-sided-printing question drops
+  (rank 3 → 5), and everything else is unchanged.
+- **Correction to the baseline notes above:** FTS does *not* rescue
+  `f-add-ram`. "RAM" vs. "memory module" is a vocabulary gap for lexical
+  search exactly as it is for embeddings — the earlier claim that hybrid
+  was this miss's "intended mitigation" was an assumption, now measured
+  and withdrawn. That question remains the set's one honest miss under
+  every retriever configuration tried to date (dense, hybrid, and the
+  removed cross-encoder re-ranker, which couldn't recover it either since
+  it only reorders the fused pool the answer was absent from).
+- **Why hybrid stays anyway:** this golden set is deliberately written in
+  the user's voice (paraphrase-heavy, per SPEC's curation rule), which is
+  dense retrieval's home turf — exact-token queries where FTS should shine
+  are underrepresented (one part-number lookup improved; there is little
+  else of that shape to measure). The cost of the sparse leg is one
+  indexed FTS query fused in-process, the one exact-token query in the set
+  did improve, and the quality benchmark's context metrics already run
+  through the hybrid path. No adoption decision to revisit — hybrid is
+  production; this section replaces the assumption behind it with a
+  measurement and an honest note about the set's coverage.
