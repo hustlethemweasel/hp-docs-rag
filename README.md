@@ -14,9 +14,10 @@ LLM-as-judge metrics; see [eval/REPORT.md](eval/REPORT.md) for results and
 tuning decisions. Load testing (`loadtest/locustfile.py`, Locust) exercises
 the real conversation-create + SSE chat flow against a live API instance; see
 [loadtest/REPORT.md](loadtest/REPORT.md) for sustained throughput, latency
-percentiles, and bottleneck analysis for both scenarios — including a real
-bug the load test caught and fixed (synchronous query embedding blocking the
-API's event loop). See [SPEC.md](SPEC.md) §16 for the full milestone history
+percentiles, and bottleneck analysis for both scenarios — including two real
+bugs the load test caught and fixed in sequence (synchronous query embedding
+blocking the API's event loop, and the thread-safety race that fix exposed
+in the shared embedding model). See [SPEC.md](SPEC.md) §16 for the full milestone history
 and §3 for the requirements traceability table (all Done).
 
 ## Quickstart

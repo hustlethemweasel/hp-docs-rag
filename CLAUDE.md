@@ -114,17 +114,21 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
   closed R2. `loadtest/locustfile.py` drives the real conversation-create +
   SSE chat flow; a `locust` Compose service (`loadtest` profile) runs it
   headless. `LLM_PROVIDER=scripted` makes `ScriptedProvider` selectable on a
-  live `api` for load-test scenario (a). That first run caught a real bug —
-  synchronous query embedding blocking uvicorn's single-process event loop
-  for *all* concurrent requests, not just embedding ones — fixed with a TDD
-  interleaving test (`asyncio.to_thread`). Full ramp, before/after evidence,
+  live `api` for load-test scenario (a). That scenario caught and fixed two
+  real bugs in sequence: synchronous query embedding blocking uvicorn's
+  single-process event loop for *all* concurrent requests, not just
+  embedding ones (`asyncio.to_thread`, TDD) — which, once fixed, exposed a
+  PyTorch thread-safety race on the shared embedding model now genuinely
+  called concurrently (`threading.Lock` in `Embedder`, TDD). The DB
+  connection pool was also sized up with `pool_pre_ping=True`
+  (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW`, TDD). Full ramp, before/after evidence,
   and scenario (b) (real claude-haiku-4-5 provider) results are in
-  `loadtest/REPORT.md`: scenario (a) sustains ~541 req/min within threshold
-  (20 users), saturating ~800–835 req/min against the default SQLAlchemy
-  connection pool (flagged as a follow-up, not fixed under load-test time
-  pressure); scenario (b) confirms LLM generation dominates (p95 ~8.5s),
-  ~208 req/min at 10 users, zero errors. 149 fast backend tests @ 93.3%
-  coverage. SPEC.md §3's requirements table reads Done on every row.
+  `loadtest/REPORT.md`: scenario (a) sustains ~891 req/min within threshold
+  (60 users, zero errors) after all three fixes — up from ~541 req/min
+  pre-fix, roughly 3x the safe-concurrency ceiling; scenario (b) confirms
+  LLM generation dominates (p95 ~8.5s), ~208 req/min at 10 users, zero
+  errors. 152 fast backend tests @ 93.4% coverage. SPEC.md §3's
+  requirements table reads Done on every row.
 
 ## Layout
 
