@@ -9,7 +9,6 @@ separate CLI invocations, without clobbering other sections of REPORT.md.
 
 import json
 from dataclasses import asdict, dataclass
-
 from pathlib import Path
 
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -78,16 +77,14 @@ def render_provider_section(run: ProviderRun) -> str:
     lines.append("|---|---|---|---|---|---|---|")
     for category in sorted({c.category for c in run.cases}):
         subset = [c for c in run.cases if c.category == category]
+        refusal_acc = _fmt(_avg([1.0 if c.refusal_correct else 0.0 for c in subset]))
+        precision = _fmt(_avg([c.context_precision for c in subset]))
+        recall = _fmt(_avg([c.context_recall for c in subset]))
+        faithfulness = _fmt(_avg([c.faithfulness for c in subset]))
+        relevancy = _fmt(_avg([c.relevancy for c in subset]))
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} |".format(
-                category,
-                len(subset),
-                _fmt(_avg([1.0 if c.refusal_correct else 0.0 for c in subset])),
-                _fmt(_avg([c.context_precision for c in subset])),
-                _fmt(_avg([c.context_recall for c in subset])),
-                _fmt(_avg([c.faithfulness for c in subset])),
-                _fmt(_avg([c.relevancy for c in subset])),
-            )
+            f"| {category} | {len(subset)} | {refusal_acc} | {precision} "
+            f"| {recall} | {faithfulness} | {relevancy} |"
         )
     lines.append("")
 
@@ -99,16 +96,11 @@ def render_provider_section(run: ProviderRun) -> str:
     )
     lines.append("|---|---|---|---|---|---|---|")
     for c in run.cases:
+        refused_mark = "✓" if c.refusal_correct else "✗"
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} |".format(
-                c.id,
-                c.category,
-                "✓" if c.refusal_correct else "✗",
-                _fmt(c.context_precision),
-                _fmt(c.context_recall),
-                _fmt(c.faithfulness),
-                _fmt(c.relevancy),
-            )
+            f"| {c.id} | {c.category} | {refused_mark} "
+            f"| {_fmt(c.context_precision)} | {_fmt(c.context_recall)} "
+            f"| {_fmt(c.faithfulness)} | {_fmt(c.relevancy)} |"
         )
     lines += ["", "</details>"]
     return "\n".join(lines)

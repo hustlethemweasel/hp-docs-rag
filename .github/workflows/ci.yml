@@ -16,9 +16,9 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --frozen
       - name: Format (Black)
-        run: uv run black --check src tests migrations
+        run: uv run black --check src tests migrations ../eval
       - name: Lint (ruff)
-        run: uv run ruff check src tests migrations
+        run: uv run ruff check src tests migrations ../eval
       - name: Types (pyrefly)
         run: uv run pyrefly check
       - name: Fast suite + coverage gate

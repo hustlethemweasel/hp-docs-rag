@@ -14,22 +14,22 @@ run = "uv sync"
 [tasks.fmt]
 description = "Check Black formatting (matches CI)"
 dir = "backend"
-run = "uv run black --check src tests migrations"
+run = "uv run black --check src tests migrations ../eval"
 
 [tasks."fmt:fix"]
 description = "Apply Black formatting"
 dir = "backend"
-run = "uv run black src tests migrations"
+run = "uv run black src tests migrations ../eval"
 
 [tasks.lint]
 description = "Lint with ruff (matches CI)"
 dir = "backend"
-run = "uv run ruff check src tests migrations"
+run = "uv run ruff check src tests migrations ../eval"
 
 [tasks."lint:fix"]
 description = "Lint with ruff, applying fixes"
 dir = "backend"
-run = "uv run ruff check --fix src tests migrations"
+run = "uv run ruff check --fix src tests migrations ../eval"
 
 [tasks.typecheck]
 description = "Type-check with pyrefly"
