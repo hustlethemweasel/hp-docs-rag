@@ -3,49 +3,96 @@
 Retrieval quality on the golden set (`retrieval.jsonl`, 24 questions), per
 the retrieval eval described in SPEC.md. Run with
 `uv run --project backend python -m eval.retrieval` against a fully ingested
-database. Originally dense-only (the gate for embedding-model swaps); since
-2026-07-18 the runner also reports the full hybrid pipeline — see "Hybrid
-vs. dense" below.
+database. The runner reports dense-only retrieval (the gate for
+embedding-model swaps) and the full hybrid pipeline (what production runs)
+side by side.
 
-## Baseline and candidates
+## Current state (as of 2026-07-18)
+
+Measured against the production index (522 chunks: 419 text + 103 figure
+captions; fixed chunker, max 450 tokens; printed-page numbering):
+
+| Configuration | recall@6 | recall@20 | MRR |
+|---|---|---|---|
+| dense only (harrier) | 0.958 | 0.958 | 0.833 |
+| hybrid — production (dense + FTS, RRF k=60) | 0.958 | 0.958 | 0.835 |
+
+Decisions in force, each detailed in its own section below:
+
+- **Embedding model: `microsoft/harrier-oss-v1-270m`, kept.** e5-small-v2
+  rejected twice — the second time under fair conditions after a
+  contamination in the first trial was found and eliminated.
+- **Hybrid retrieval (dense + Postgres FTS, RRF): production.** Measured
+  ≈ dense on this golden set; kept — the sparse leg is nearly free, the
+  set's one exact-token query improved, and the set under-represents the
+  query shape FTS exists for.
+- **Cross-encoder re-ranker: not adopted**; spike code removed from the
+  tree (restorable from commit `f1b92a9`).
+- **`REFUSAL_THRESHOLD=0.0`, kept** — neither candidate score signal
+  separates negative from positive cases in this embedding space.
+- **Known limitation:** "How do I add more RAM to this machine?"
+  (`f-add-ram`) misses under every configuration tried — dense, hybrid,
+  and the re-ranker. "RAM" matches "memory module" neither semantically
+  nor lexically. More broadly, the golden set is deliberately
+  paraphrase-heavy (questions written in the user's voice), so exact-token
+  queries are under-represented.
+
+## Embedding model selection: harrier vs. e5-small-v2
 
 | Model | Dim | recall@6 | recall@20 | MRR | Verdict |
 |---|---|---|---|---|---|
-| microsoft/harrier-oss-v1-270m | 640 | 0.958 | 0.958 | 0.826 | **kept** |
-| intfloat/e5-small-v2 | 384 | 0.917 | 0.958 | 0.731 | rejected |
+| microsoft/harrier-oss-v1-270m (current) | 640 | 0.958 | 0.958 | 0.833 | **kept** |
+| intfloat/e5-small-v2 (fair re-trial) | 384 | 0.917 | 0.958 | 0.731 | rejected |
 
-Notes (2026-07-17):
+**Original trial (2026-07-17).** e5-small-v2 was trialed for its size
+(~130MB vs ~1GB; ~20x faster CPU embedding) via an in-memory index
+re-chunked with e5's tokenizer against the same golden set. It lost
+measurably — the wifi-card question fell to rank 8, paper jam to rank 6 —
+and the trial surfaced that 9 chunks exceeded e5's 512-token input limit
+and were silently truncated. Harrier hit 23/24 questions within the top 6
+(18 at rank 1) and was kept, especially since the HF cache volume removes
+the repeated-download pain of the larger model.
 
-- Harrier: 23/24 questions hit within the top 6 chunks; 18 hit at rank 1.
-- The one shared miss — "How do I add more RAM to this machine?" — is a
-  vocabulary gap: the OMEN guide only says "memory module", and dense
-  retrieval doesn't bridge the paraphrase within the top 20. Kept in the set
-  as an honest hard case. (Hybrid FTS+RRF was the intended mitigation here,
-  but later measurement showed it doesn't help — "RAM" doesn't lexically
-  match "memory module" either; see "Hybrid vs. dense" below.)
-- e5-small-v2 was trialed for its size (~130MB vs ~1GB; ~20x faster CPU
-  embedding) via an in-memory index re-chunked with e5's tokenizer and the
-  same golden set. It lost measurably — recall@6 −0.041, MRR −0.095 (the wifi
-  card question fell to rank 8, paper jam to rank 6) — and 9 chunks exceeded
-  its 512-token input limit, which would be silently truncated. Not worth the
-  quality trade now that the HF cache volume removes the repeated-download
-  pain of the larger model. (This trial predated the chunker fix below, so
-  the truncation handicapped e5 specifically — re-trialed fairly on
-  2026-07-18 with identical results; see "e5-small-v2 re-trial" below.)
-- The trial surfaced a latent chunking issue independent of model choice:
-  blocks with no sentence boundaries (large markdown tables) can produce
-  chunks far above the ~450-token target — the worst was 4,414 tokens.
-  Harmless for harrier's 32k context but bad for retrieval precision;
-  tracked as a follow-up chunker fix (hard token-split fallback), to be
-  re-evaluated here when done.
+**Fair re-trial (2026-07-18).** The original trial was later recognized as
+contaminated in e5's disfavor: it ran under the then-buggy chunker (see
+the chunker section below), whose oversized sentence-less blocks were
+truncated at e5's 512-token limit while harrier's 32k context absorbed
+them whole — and after the chunker was fixed, only harrier had been
+re-measured. The stakes had also risen: load testing later showed query
+embedding is the API's serialized CPU bottleneck, making e5's ~20x faster
+CPU inference worth a fair verdict. Re-trialed with an in-memory harness
+(not committed, per spike hygiene — this section is the durable record):
+real `parse_pdf` (printed-page numbers) + real `chunk_pages` at the
+production 450/80 config counting with e5's own tokenizer (528 text
+chunks), plus the 103 production figure captions from the live DB (631
+total, same corpus shape as production), e5's `query:`/`passage:`
+prefixes, normalized cosine, dense top-20, same `eval.metrics`, current
+golden set. Verified: max chunk 450 e5-tokens, **zero** over the 512
+limit.
+
+Result: **identical to the contaminated trial to three decimals** —
+recall@6 0.917, recall@20 0.958, MRR 0.731, with even the per-question
+regressions reproducing exactly (wifi-card rank 8, paper jam rank 6,
+`f-add-ram` still the shared miss). The truncated chunks evidently were
+never answer chunks for any golden question. The rejection therefore
+stands on clean evidence: e5's loss is genuine model quality, and the MRR
+gap versus current harrier (0.731 vs 0.833) is wider than originally
+recorded, because harrier gained from the chunker fix while e5's fair
+numbers didn't move. The load-test incentive doesn't buy back −0.041
+recall@6 and −0.102 MRR — if the embedding bottleneck ever needs
+addressing, it's a concurrency/hardware problem before it's a model-swap
+problem.
 
 ## Chunker: hard token-window fallback
 
-Blocks with no sentence boundary (large markdown tables in the HP manuals)
-were passing `_split_oversized` as a single unit far above the ~450-token
-target (worst observed: 4,414 tokens with the e5 tokenizer). Added a hard
+The original e5 trial surfaced a latent chunking bug independent of model
+choice: blocks with no sentence boundary (large markdown tables in the HP
+manuals) passed `_split_oversized` as a single unit far above the
+~450-token target — worst observed, 4,414 tokens with the e5 tokenizer.
+Harmless for harrier's 32k context, bad for retrieval precision, and
+silently truncating for any 512-limit model. Fixed with a hard
 word-window fallback in `_split_by_word_window` for units still over
-`chunk_tokens` after sentence splitting. Re-ingested and re-ran the eval:
+`chunk_tokens` after sentence splitting; re-ingested and re-ran the eval:
 
 | Model | Dim | recall@6 | recall@20 | MRR | max chunk tokens |
 |---|---|---|---|---|---|
@@ -53,30 +100,30 @@ word-window fallback in `_split_by_word_window` for units still over
 
 Notes (2026-07-17):
 
-- Max chunk size across all 522 ingested chunks is now 450 tokens (down from
-  the 4,414-token outlier); no chunk exceeds `chunk_tokens`.
-- recall@6/@20 unchanged; MRR improved slightly (0.826 → 0.833). The same
-  "How do I add more RAM to this machine?" miss remains — expected, since
-  it's a vocabulary gap, not a chunking artifact.
+- Max chunk size across all 522 ingested chunks is now 450 tokens (down
+  from the 4,414-token outlier); no chunk exceeds `chunk_tokens`.
+- recall@6/@20 unchanged from the pre-fix run; MRR improved slightly
+  (0.826 → 0.833). The `f-add-ram` miss remains — expected, since it's a
+  vocabulary gap, not a chunking artifact.
 
-## Page-numbering fix: printed page number, not physical PDF position
+## Page numbering: printed page number, not physical PDF position
 
-A user-reported bug: citations didn't match the page the manual itself
-prints — e.g. "p. 65" for content the HP ENVY guide's own footer labels
-"p. 59". Both manuals have front matter (cover, notices, table of contents)
-before their own "page 1"; pymupdf4llm's page index is physical PDF
-position, offset from what's printed on the page by a constant (6 for the
-ENVY guide, 7 for the OMEN guide — verified against every sampled page,
-including appendices/index). `parse_pdf` now detects this offset per
-document (majority vote across pages whose printed number can be read from
-the page's own trailing text) and applies it to both text and figure-caption
-page numbers.
+A user-reported bug (2026-07-17): citations didn't match the page the
+manual itself prints — e.g. "p. 65" for content the HP ENVY guide's own
+footer labels "p. 59". Both manuals have front matter (cover, notices,
+table of contents) before their own "page 1"; pymupdf4llm's page index is
+physical PDF position, offset from what's printed on the page by a
+constant (6 for the ENVY guide, 7 for the OMEN guide — verified against
+every sampled page, including appendices/index). `parse_pdf` now detects
+this offset per document (majority vote across pages whose printed number
+can be read from the page's own trailing text) and applies it to both
+text and figure-caption page numbers.
 
 This golden set's `pages` values were themselves curated against physical
-PDF position (i.e., the pre-fix convention — confirmed directly: the
-`f-ink-level` question's answer sits at physical page 62, printed page 56;
-the original entry said `[62]`), so they were shifted by the same per-document
-offset to stay valid evidence for the new, corrected convention:
+PDF position (confirmed directly: the `f-ink-level` question's answer
+sits at physical page 62, printed page 56; the original entry said
+`[62]`), so they were shifted by the same per-document offset to stay
+valid under the corrected convention:
 
 | | recall@6 | recall@20 | MRR |
 |---|---|---|---|
@@ -85,21 +132,62 @@ offset to stay valid evidence for the new, corrected convention:
 
 Unchanged, as expected — only page *labels* moved, not retrieval itself
 (same chunks, same embeddings, same ranking). Documents were re-ingested
-against the real database (522 chunks, unchanged count) to apply the fix to
-live data; a live query re-verified against the actual PDF footer text
-("Replace the cartridges 59" / "60 Chapter 6 Manage cartridges" on the two
-physical pages the system now cites as "p. 59-60").
+against the real database (522 chunks, unchanged count) to apply the fix
+to live data; a live query re-verified against the actual PDF footer text
+("Replace the cartridges 59" / "60 Chapter 6 Manage cartridges" on the
+two physical pages the system now cites as "p. 59-60").
+
+## Hybrid vs. dense (measuring the hybrid-search rationale)
+
+Until 2026-07-18, no direct dense-vs-hybrid comparison on the same
+question set existed anywhere — SPEC's hybrid rationale (exact tokens
+like part numbers and error codes favor keyword search) had never been
+measured, and hybrid had at one point been assumed to be the mitigation
+for the `f-add-ram` miss. The runner now reports both: dense via the real
+`ChunkRepository`, hybrid via the real production `HybridRetriever`
+(`top_k` widened to 20 only so recall@20 is measurable; rank order is
+unaffected):
+
+| | recall@6 | recall@20 | MRR |
+|---|---|---|---|
+| dense only | 0.958 | 0.958 | 0.833 |
+| hybrid (dense + FTS, RRF k=60) | 0.958 | 0.958 | **0.835** |
+
+Notes (2026-07-18):
+
+- **A wash on aggregate, as honest measurement.** 21 of 24 questions have
+  identical ranks under both. The spare-part-number question improves
+  (rank 3 → 2 — the one exact-token query in the set, directionally
+  consistent with the rationale), the double-sided-printing question
+  drops (rank 3 → 5), and everything else is unchanged.
+- **FTS does *not* rescue `f-add-ram`.** "RAM" vs. "memory module" is a
+  vocabulary gap for lexical search exactly as it is for embeddings — the
+  earlier assumption that hybrid would mitigate this miss is measured and
+  withdrawn. The question misses under every retriever configuration
+  tried to date (dense, hybrid, and the removed cross-encoder re-ranker,
+  which could only reorder a fused pool the answer was absent from).
+- **Why hybrid stays anyway:** this golden set is deliberately written in
+  the user's voice (paraphrase-heavy, per SPEC's curation rule), which is
+  dense retrieval's home turf — exact-token queries where FTS should
+  shine are under-represented (one part-number lookup improved; there is
+  little else of that shape to measure). The cost of the sparse leg is
+  one indexed FTS query fused in-process, and the quality benchmark's
+  context metrics already run through the hybrid path. No adoption
+  decision to revisit — hybrid is production; this section replaces the
+  assumption behind it with a measurement and an honest note about the
+  set's coverage.
 
 ## Golden dataset (`golden.jsonl`)
 
-37 curated Q&A pairs across both manuals, seeded from `retrieval.jsonl`'s 24
-factual/procedure questions plus new cases added for Milestone 5: 5
-figure-dependent questions grounded in real indexed `figure_caption` chunks
-(scanner callouts p. 8, SSD/RAM/keyboard/WLAN diagrams in the OMEN guide), 4
-multi-turn follow-ups that reuse an earlier question's page range but require
-resolving a pronoun/reference from the prior turn, and 4 negative
-(unanswerable) questions from unrelated domains (car tire pressure, router
-admin passwords, Thunderbolt 5 support, HP's return policy).
+37 curated Q&A pairs across both manuals, seeded from `retrieval.jsonl`'s
+24 factual/procedure questions plus new cases added for Milestone 5: 5
+figure-dependent questions grounded in real indexed `figure_caption`
+chunks (scanner callouts p. 8, SSD/RAM/keyboard/WLAN diagrams in the OMEN
+guide), 4 multi-turn follow-ups that reuse an earlier question's page
+range but require resolving a pronoun/reference from the prior turn, and
+4 negative (unanswerable) questions from unrelated domains (car tire
+pressure, router admin passwords, Thunderbolt 5 support, HP's return
+policy).
 
 ## Refusal threshold tuning (Milestone 5)
 
@@ -151,9 +239,9 @@ domain.
 
 ## Re-ranker experiment (§18 open question, resolved)
 
-Spiked a cross-encoder re-ranker (`cross-encoder/ms-marco-MiniLM-L-6-v2`,
-`eval/rerank_experiment.py`) on top of the RRF-fused top-20, re-scoring and
-re-truncating to top-6, against the 33 answerable golden questions:
+Spiked a cross-encoder re-ranker (`cross-encoder/ms-marco-MiniLM-L-6-v2`)
+on top of the RRF-fused top-20, re-scoring and re-truncating to top-6,
+against the 33 answerable golden questions:
 
 | | recall@6 | MRR | context precision |
 |---|---|---|---|
@@ -180,7 +268,13 @@ commit `f1b92a9` and rerun.
 
 ## Response Quality Benchmark
 
-LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the response-quality benchmark described in SPEC.md. Run with `uv run --project backend python -m eval.run` against a fully ingested database; temperature is pinned to 0 on every provider call for reproducibility.
+LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the
+response-quality benchmark described in SPEC.md. Run with
+`uv run --project backend python -m eval.run` against a fully ingested
+database; temperature is pinned to 0 on every provider call for
+reproducibility. Current numbers are from a clean-cache run on 2026-07-18,
+after the page-numbering fix (golden pages and index both on the
+printed-page convention).
 
 ### anthropic / claude-haiku-4-5 (37 cases)
 
@@ -243,88 +337,3 @@ LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the respo
 | neg-return-policy | negative | ✗ | — | — | — | — |
 
 </details>
-
-## Hybrid vs. dense (measuring the hybrid-search rationale)
-
-The report's headline numbers were dense-only, the quality benchmark's
-context metrics were hybrid, and no direct comparison on the same question
-set existed anywhere — SPEC's hybrid rationale (exact tokens like part
-numbers and error codes favor keyword search) had never been measured. The
-runner now reports both, dense via the real `ChunkRepository`, hybrid via
-the real production `HybridRetriever` (`top_k` widened to 20 only so
-recall@20 is measurable; rank order is unaffected):
-
-| | recall@6 | recall@20 | MRR |
-|---|---|---|---|
-| dense only | 0.958 | 0.958 | 0.833 |
-| hybrid (dense + FTS, RRF k=60) | 0.958 | 0.958 | **0.835** |
-
-Notes (2026-07-18):
-
-- **A wash on aggregate, as honest measurement.** 21 of 24 questions have
-  identical ranks under both. The spare-part-number question improves
-  (rank 3 → 2 — the one exact-token query in the set, directionally
-  consistent with the rationale), the double-sided-printing question drops
-  (rank 3 → 5), and everything else is unchanged.
-- **Correction to the baseline notes above:** FTS does *not* rescue
-  `f-add-ram`. "RAM" vs. "memory module" is a vocabulary gap for lexical
-  search exactly as it is for embeddings — the earlier claim that hybrid
-  was this miss's "intended mitigation" was an assumption, now measured
-  and withdrawn. That question remains the set's one honest miss under
-  every retriever configuration tried to date (dense, hybrid, and the
-  removed cross-encoder re-ranker, which couldn't recover it either since
-  it only reorders the fused pool the answer was absent from).
-- **Why hybrid stays anyway:** this golden set is deliberately written in
-  the user's voice (paraphrase-heavy, per SPEC's curation rule), which is
-  dense retrieval's home turf — exact-token queries where FTS should shine
-  are underrepresented (one part-number lookup improved; there is little
-  else of that shape to measure). The cost of the sparse leg is one
-  indexed FTS query fused in-process, the one exact-token query in the set
-  did improve, and the quality benchmark's context metrics already run
-  through the hybrid path. No adoption decision to revisit — hybrid is
-  production; this section replaces the assumption behind it with a
-  measurement and an honest note about the set's coverage.
-
-## e5-small-v2 re-trial (fair conditions, post chunker fix)
-
-The original e5 trial above was contaminated in e5's disfavor: it ran
-under the buggy chunker, whose sentence-less oversized blocks (up to
-4,414 tokens) were silently truncated at e5's 512-token input limit while
-harrier's 32k context absorbed them whole. The chunker fix eliminated
-truncation entirely, but only harrier was re-measured afterward — so the
-rejection verdict rested on a comparison where the winner had a
-structural advantage. The stakes also rose after the decision was made:
-load testing later showed query embedding is the API's serialized CPU
-bottleneck, making e5's ~20x faster CPU inference worth a fair verdict.
-
-Methodology (in-memory harness, not committed per spike hygiene — this
-section is the durable record): real `parse_pdf` (printed-page numbers) +
-real `chunk_pages` at the production 450/80 config counting with e5's own
-tokenizer (528 text chunks); the 103 production figure captions pulled
-from the live DB so e5 retrieves over the same text+caption corpus
-production does (631 total); e5's `query:`/`passage:` asymmetric
-prefixes; normalized cosine, dense top-20; same `eval.metrics` and
-current printed-page golden set. Verified: max chunk 450 e5-tokens,
-**zero** over the 512 limit.
-
-| | recall@6 | recall@20 | MRR |
-|---|---|---|---|
-| e5-small-v2, original trial (truncation-contaminated) | 0.917 | 0.958 | 0.731 |
-| e5-small-v2, fair re-trial (zero truncation) | 0.917 | 0.958 | 0.731 |
-| harrier (current, dense) | **0.958** | 0.958 | **0.833** |
-
-Notes (2026-07-18):
-
-- **Identical to three decimals — the truncation artifact had no
-  measurable effect.** Even the per-question regressions reproduce
-  exactly: wifi-card question at rank 8, paper jam at rank 6, `f-add-ram`
-  still the shared miss. The truncated chunks evidently weren't answer
-  chunks for any golden question.
-- **The rejection stands, now on clean evidence.** e5's loss is genuine
-  model quality, not an artifact — and the MRR gap versus current harrier
-  is wider than originally recorded (0.731 vs 0.833, −0.102) because
-  harrier gained from the chunker fix while e5's fair-conditions numbers
-  didn't move. The load-test performance incentive (embedding is the
-  serialized CPU bottleneck) doesn't buy back −0.041 recall@6 and −0.102
-  MRR; if that bottleneck ever needs addressing, it's a
-  concurrency/hardware problem before it's a model-swap problem.
