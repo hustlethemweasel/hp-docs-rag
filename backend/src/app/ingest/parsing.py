@@ -77,7 +77,7 @@ def _detect_page_offset(raw_pages: list[dict]) -> int:
     # offset with only a page or two "voting" for it; require a real
     # majority before trusting one. The `// 4` scales the bar with document
     # length (2 agreeing pages means nothing in a 500-page manual); `max(3, ...)`
-    # floors it for short documents, where that scaled value could be 0-2.
+    # only matters below 12 pages, where `// 4` alone would drop under 3.
     if votes < max(3, len(raw_pages) // 4):
         return 0
     return best_offset
