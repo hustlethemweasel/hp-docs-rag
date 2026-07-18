@@ -180,55 +180,55 @@ LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the respo
 | Metric | Score |
 |---|---|
 | refusal accuracy | 0.973 |
-| context precision | 0.748 |
+| context precision | 0.738 |
 | context recall | 0.970 |
-| faithfulness | 0.915 |
-| answer relevancy | 0.938 |
+| faithfulness | 0.930 |
+| answer relevancy | 0.911 |
 
 | Category | n | refusal acc. | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| factual | 10 | 1.000 | 0.742 | 1.000 | 0.915 | 0.983 |
-| figure | 5 | 1.000 | 0.748 | 1.000 | 0.910 | 0.930 |
-| multiturn | 4 | 1.000 | 0.717 | 1.000 | 0.900 | 0.970 |
+| factual | 10 | 1.000 | 0.742 | 1.000 | 0.935 | 0.978 |
+| figure | 5 | 1.000 | 0.733 | 1.000 | 0.860 | 0.770 |
+| multiturn | 4 | 1.000 | 0.653 | 1.000 | 0.938 | 0.877 |
 | negative | 4 | 0.750 | — | — | — | — |
-| procedure | 14 | 1.000 | 0.762 | 0.929 | 0.921 | 0.900 |
+| procedure | 14 | 1.000 | 0.762 | 0.929 | 0.950 | 0.923 |
 
 <details><summary>Per-question breakdown</summary>
 
 | id | category | refusal ok | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| f-wifi-connect | procedure | ✓ | 0.667 | 1.000 | 0.850 | 0.950 |
+| f-wifi-connect | procedure | ✓ | 0.667 | 1.000 | 0.950 | 0.980 |
 | f-paper-jam | procedure | ✓ | 0.833 | 1.000 | 0.950 | 0.980 |
 | f-ink-level | factual | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
-| f-swap-cartridges | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.980 |
-| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| f-double-sided | factual | ✓ | 0.200 | 1.000 | 0.850 | 0.950 |
+| f-swap-cartridges | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 0.950 | 0.950 |
+| f-double-sided | factual | ✓ | 0.200 | 1.000 | 0.950 | 1.000 |
 | f-envelopes | procedure | ✓ | 0.500 | 1.000 | 0.950 | 1.000 |
 | f-scan-phone | procedure | ✓ | 0.417 | 1.000 | 0.950 | 0.950 |
 | f-sleep-timer | factual | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| f-factory-reset | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
+| f-factory-reset | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.950 |
 | f-photo-quality | factual | ✓ | 0.500 | 1.000 | 0.950 | 0.950 |
 | f-wont-print | procedure | ✓ | 0.750 | 1.000 | 0.950 | 0.980 |
-| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.980 |
-| f-add-ram | procedure | ✓ | 0.000 | 0.000 | 0.950 | 0.150 |
-| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.950 | 0.980 |
+| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| f-add-ram | procedure | ✓ | 0.000 | 0.000 | 0.950 | 0.300 |
+| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.950 | 1.000 |
 | f-open-bottom-cover | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
 | f-replace-wifi-card | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.900 |
-| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.850 |
-| f-replace-display | procedure | ✓ | 0.750 | 1.000 | 0.850 | 0.950 |
+| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.900 |
+| f-replace-display | procedure | ✓ | 0.750 | 1.000 | 0.950 | 0.980 |
 | f-static-precautions | factual | ✓ | 0.887 | 1.000 | 0.950 | 0.980 |
 | f-battery-part-number | factual | ✓ | 0.583 | 1.000 | 1.000 | 1.000 |
-| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.850 | 0.950 |
+| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.950 | 0.900 |
 | f-bios-version | factual | ✓ | 0.833 | 1.000 | 0.850 | 1.000 |
 | f-display-panel-only | factual | ✓ | 0.750 | 1.000 | 0.950 | 1.000 |
-| fig-scanner-callouts | figure | ✓ | 1.000 | 1.000 | 0.950 | 0.950 |
-| fig-ssd-install-diagram | figure | ✓ | 0.833 | 1.000 | 0.850 | 0.900 |
-| fig-ram-install-diagram | figure | ✓ | 0.325 | 1.000 | 0.850 | 0.900 |
+| fig-scanner-callouts | figure | ✓ | 1.000 | 1.000 | 0.850 | 0.400 |
+| fig-ssd-install-diagram | figure | ✓ | 0.750 | 1.000 | 0.700 | 0.600 |
+| fig-ram-install-diagram | figure | ✓ | 0.333 | 1.000 | 0.850 | 0.900 |
 | fig-keyboard-removal-diagram | figure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| fig-wlan-diagram | figure | ✓ | 0.583 | 1.000 | 0.950 | 0.900 |
+| fig-wlan-diagram | figure | ✓ | 0.583 | 1.000 | 0.950 | 0.950 |
 | mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 0.850 | 0.950 |
-| mt-battery-then-part-number | multiturn | ✓ | 0.700 | 1.000 | 0.850 | 1.000 |
-| mt-wifi-then-still-fails | multiturn | ✓ | 0.167 | 1.000 | 0.950 | 0.950 |
+| mt-battery-then-part-number | multiturn | ✓ | 0.444 | 1.000 | 1.000 | 0.600 |
+| mt-wifi-then-still-fails | multiturn | ✓ | 0.167 | 1.000 | 0.950 | 0.980 |
 | mt-bottom-cover-then-static | multiturn | ✓ | 1.000 | 1.000 | 0.950 | 0.980 |
 | neg-tire-pressure | negative | ✓ | — | — | — | — |
 | neg-router-password | negative | ✓ | — | — | — | — |
