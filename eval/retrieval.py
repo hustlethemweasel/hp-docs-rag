@@ -14,41 +14,17 @@ EMBEDDING_MODEL (defaults to the model pinned in .env.example).
 """
 
 import asyncio
-import json
 import os
-from dataclasses import dataclass
-from pathlib import Path
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.ingest.embedding import load_embedder
 from app.rag.retrieval import HybridRetriever
 from app.repositories.chunks import ChunkRepository
+from eval.golden import load_golden, retrieval_cases
 from eval.metrics import mean_reciprocal_rank, rank_of_first_hit, recall_at
 
-GOLDEN_PATH = Path(__file__).parent / "retrieval.jsonl"
 CANDIDATES = 20
-
-
-@dataclass(frozen=True)
-class GoldenQuestion:
-    question: str
-    document: str
-    pages: set[int]
-
-
-def load_golden() -> list[GoldenQuestion]:
-    questions = []
-    for line in GOLDEN_PATH.read_text().splitlines():
-        record = json.loads(line)
-        questions.append(
-            GoldenQuestion(
-                question=record["question"],
-                document=record["document"],
-                pages=set(record["pages"]),
-            )
-        )
-    return questions
 
 
 def _summarize(label: str, ranks: list[int | None]) -> None:
@@ -65,7 +41,7 @@ async def run() -> None:
     model_name = os.environ.get("EMBEDDING_MODEL", "microsoft/harrier-oss-v1-270m")
     embedder = load_embedder(model_name)
     engine = create_async_engine(database_url)
-    golden = load_golden()
+    golden = retrieval_cases(load_golden())
 
     dense_ranks: list[int | None] = []
     hybrid_ranks: list[int | None] = []
@@ -82,6 +58,9 @@ async def run() -> None:
                 refusal_threshold=0.0,
             )
             for item in golden:
+                # retrieval_cases guarantees pages; a paged case without a
+                # document is malformed golden data — fail fast.
+                assert item.document is not None
                 embedding = embedder.embed_query(item.question)
                 dense = await chunks.dense_search(embedding, limit=CANDIDATES)
                 hybrid = await retriever.retrieve(item.question)

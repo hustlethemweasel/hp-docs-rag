@@ -23,6 +23,19 @@ class GoldenCase:
     expect_refusal: bool
 
 
+def retrieval_cases(cases: list[GoldenCase]) -> list[GoldenCase]:
+    """The subset the retrieval-only eval can measure: answerable cases
+    (negatives have no expected pages to rank against) that are single-turn
+    (multi-turn questions are incomplete without the query rewriting that
+    eval doesn't run).
+    """
+    return [
+        case
+        for case in cases
+        if not case.expect_refusal and not case.history and case.pages
+    ]
+
+
 def load_golden(path: Path = GOLDEN_PATH) -> list[GoldenCase]:
     cases = []
     for line in path.read_text().splitlines():
