@@ -73,6 +73,11 @@ def _detect_page_offset(raw_pages: list[dict]) -> int:
     if not offsets:
         return 0
     best_offset, votes = max(offsets.items(), key=lambda item: item[1])
+    # A regex misread (a table value, a part number) can produce a bogus
+    # offset with only a page or two "voting" for it; require a real
+    # majority before trusting one. The `// 4` scales the bar with document
+    # length (2 agreeing pages means nothing in a 500-page manual); `max(3, ...)`
+    # floors it for short documents, where that scaled value could be 0-2.
     if votes < max(3, len(raw_pages) // 4):
         return 0
     return best_offset
