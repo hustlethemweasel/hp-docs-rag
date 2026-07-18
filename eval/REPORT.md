@@ -165,11 +165,13 @@ notion of relevance). Net effect is a wash on quality, for the cost of a
 second model on CPU and a slower request path.
 
 **Decision: not adopted.** No evidence in this golden set justifies the
-added latency (§8's stretch goal stays a stretch goal). The spike script is
-kept in `eval/rerank_experiment.py` as a reusable regression check if a
-future embedding/chunking change meaningfully lowers recall@6 or context
-precision — that's the scenario where a re-ranker's precision lift would
-actually be worth its cost.
+added latency (§8's stretch goal stays a stretch goal). The spike's code
+was subsequently removed from the tree — a spike that loses doesn't ship;
+this table is the durable evidence. If a future embedding/chunking change
+meaningfully lowers recall@6 or context precision (the scenario where a
+re-ranker's precision lift would actually be worth its cost), restore
+`eval/rerank_experiment.py` and `backend/tests/test_eval_rerank.py` from
+commit `f1b92a9` and rerun.
 
 ## Response Quality Benchmark
 

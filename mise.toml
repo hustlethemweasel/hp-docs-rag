@@ -61,11 +61,6 @@ description = "Response-quality benchmark (golden set + LLM-as-judge) against an
 dir = "."
 run = "uv run --project backend python -m eval.run"
 
-[tasks."eval:rerank"]
-description = "Cross-encoder re-ranker spike against an ingested database"
-dir = "."
-run = "uv run --project backend python -m eval.rerank_experiment"
-
 [tasks."frontend:install"]
 description = "Install frontend dependencies"
 dir = "frontend"

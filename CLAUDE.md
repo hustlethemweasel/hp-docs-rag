@@ -35,7 +35,6 @@ mise run typecheck                       # pyrefly
 mise run check                           # fmt + lint + typecheck + test — the full CI gate
 mise run eval                            # retrieval eval against an ingested database
 mise run eval:quality                    # response-quality benchmark (golden set + LLM-as-judge)
-mise run eval:rerank                     # cross-encoder re-ranker spike
 
 mise run frontend:install                # npm ci
 mise run frontend:test                   # Vitest suite
