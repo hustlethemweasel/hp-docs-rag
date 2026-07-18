@@ -62,7 +62,7 @@ def _detect_page_offset(raw_pages: list[dict]) -> int:
     attached HP manuals, including their appendices/index), so it's detected
     once via majority vote across pages whose printed number can be read
     from the text, then applied uniformly. Falls back to 0 (physical index
-    used as-is) when too few pages yield a confident reading to trust it.
+    used as-is) when the readings don't reach consensus.
     """
     offsets: dict[int, int] = {}
     for page in raw_pages:
@@ -73,12 +73,13 @@ def _detect_page_offset(raw_pages: list[dict]) -> int:
     if not offsets:
         return 0
     best_offset, votes = max(offsets.items(), key=lambda item: item[1])
-    # A regex misread (a table value, a part number) can produce a bogus
-    # offset with only a page or two "voting" for it; require a real
-    # majority before trusting one. The `// 4` scales the bar with document
-    # length (2 agreeing pages means nothing in a 500-page manual); `max(3, ...)`
-    # only matters below 12 pages, where `// 4` alone would drop under 3.
-    if votes < max(3, len(raw_pages) // 4):
+    # Trust consensus among the readings, not coverage of the document:
+    # pages that yielded no reading (front matter, full-page figures) are
+    # silent, not disagreeing. Misreads (a trailing table value, a part
+    # number) scatter across random offsets while a true offset
+    # concentrates, so the winner must outvote all other candidates
+    # combined — and a single reading is no corroboration at all.
+    if votes < 2 or votes * 2 <= sum(offsets.values()):
         return 0
     return best_offset
 

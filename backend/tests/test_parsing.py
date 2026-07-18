@@ -159,3 +159,68 @@ def test_page_numbers_work_without_a_repeating_footer_line(tmp_path):
 
     assert [p.number for p in parsed.pages] == [1, 1, 2, 3]
     assert parsed.page_offset == 1
+
+
+def test_offset_detection_trusts_consensus_not_page_coverage(tmp_path):
+    """Pages that yield no reading (front matter, full-page figures) aren't
+    evidence *against* an offset — they're just silent. A long document
+    where only a few pages have machine-readable footers must still get
+    the correction when those readings unanimously agree.
+    """
+    pdf_path = tmp_path / "doc.pdf"
+    # 13 silent front-matter/figure-like pages, then only 3 readable ones —
+    # under a bar scaled to total page count (16 pages), 3 unanimous
+    # readings would wrongly be dismissed.
+    Page = list[tuple[tuple[float, float], str, float]]
+    silent: list[Page] = [[((72, 72), "Wordless diagram page.", 10)] for _ in range(13)]
+    readable: list[Page] = [
+        [
+            ((72, 72), f"Body page {n}.", 10),
+            ((72, 750), f"Chapter 9 overview {n}", 8),
+        ]
+        for n in (1, 2, 3)
+    ]
+    build_pdf(pdf_path, silent + readable)
+
+    parsed = parse_pdf(pdf_path)
+
+    assert parsed.page_offset == 13
+
+
+def test_offset_detection_rejects_disagreeing_readings(tmp_path):
+    """Misreads (a trailing table value, a part number) scatter across
+    random offsets while a true offset concentrates; with no consensus
+    among the readings, the safe fallback is no correction at all.
+    """
+    pdf_path = tmp_path / "doc.pdf"
+    build_pdf(
+        pdf_path,
+        [
+            [((72, 72), "Cover page.", 10)],
+            # Two readings implying different offsets (2-1=1 vs 3-7=-4):
+            [((72, 72), "Body.", 10), ((72, 750), "Chapter 1 overview 1", 8)],
+            [((72, 72), "Body.", 10), ((72, 750), "Voltage rating 7", 8)],
+        ],
+    )
+
+    parsed = parse_pdf(pdf_path)
+
+    assert parsed.page_offset == 0
+
+
+def test_offset_detection_needs_more_than_one_reading(tmp_path):
+    """A single reading is no corroboration — it's indistinguishable from
+    a lone misread, so it can't justify renumbering the whole document.
+    """
+    pdf_path = tmp_path / "doc.pdf"
+    build_pdf(
+        pdf_path,
+        [
+            [((72, 72), "Cover page.", 10)],
+            [((72, 72), "Body.", 10), ((72, 750), "Chapter 1 overview 1", 8)],
+        ],
+    )
+
+    parsed = parse_pdf(pdf_path)
+
+    assert parsed.page_offset == 0

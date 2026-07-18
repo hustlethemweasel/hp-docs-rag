@@ -146,9 +146,9 @@ async def test_figure_page_numbers_use_the_documents_own_printed_numbering(tmp_p
     # Front matter: no printed page number, establishes nothing on its own.
     cover = doc.new_page()
     cover.insert_text((72, 72), "Cover page.", fontsize=10, fontname="helv")
-    # Body: printed page number sits alone as the page's own last line. Three
-    # confident readings are needed to clear _detect_page_offset's vote
-    # threshold (max(3, page_count // 4)).
+    # Body: printed page number sits alone as the page's own last line;
+    # unanimous readings across the body pages give _detect_page_offset
+    # its consensus.
     for printed_number in (1, 2, 3):
         page = doc.new_page()
         page.insert_text(
