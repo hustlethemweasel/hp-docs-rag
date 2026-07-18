@@ -157,7 +157,7 @@ Runs as a one-shot Compose job (`ingest` service): it first applies Alembic migr
 - Extract text per page as structured markdown with **pymupdf4llm** (PyMuPDF's LLM-oriented layer), preserving page numbers and detected headings.
 - Light cleaning: de-hyphenate line breaks, collapse whitespace, drop headers/footers detected by repetition across pages.
 - Heading/section structure comes from pymupdf4llm's built-in layout analysis (replacing hand-rolled font-size heuristics); chunks are tagged with their nearest section title. Best-effort; falls back gracefully.
-- **Page numbers are the document's own printed numbers, not physical PDF position.** Both HP manuals have front matter (cover, notices, table of contents) before their own "page 1", so pymupdf4llm's physical page index is offset from what a reader sees printed on the page — and would type into a citation (a real bug: citations read "p. 65" for content the manual itself prints as "p. 59"). The offset is constant across a document's body (confirmed against both manuals, including their appendices/index); `parse_pdf` detects it once per document via majority vote across pages whose printed number can be read from the page's own trailing text, then applies it uniformly — including to figure captions, extracted separately via raw PyMuPDF and corrected the same way. Falls back to physical indexing (no correction) when too few pages yield a confident reading. `eval/golden.jsonl` and `eval/retrieval.jsonl`'s expected pages were originally curated against physical PDF position (matching the pre-fix convention) and were shifted to match; recall@6 unaffected (0.958 after, matching the historical baseline) since only page *labels* changed, not retrieval itself.
+- **Page numbers are the document's own printed numbers, not physical PDF position.** Both HP manuals have front matter (cover, notices, table of contents) before their own "page 1", so pymupdf4llm's physical page index is offset from what a reader sees printed on the page — and would type into a citation (a real bug: citations read "p. 65" for content the manual itself prints as "p. 59"). The offset is constant across a document's body (confirmed against both manuals, including their appendices/index); `parse_pdf` detects it once per document via majority vote across pages whose printed number can be read from the page's own trailing text, then applies it uniformly — including to figure captions, extracted separately via raw PyMuPDF and corrected the same way. Falls back to physical indexing (no correction) when too few pages yield a confident reading. The golden datasets' expected pages were originally curated against physical PDF position (matching the pre-fix convention) and were shifted to match; recall@6 unaffected (0.958 after, matching the historical baseline) since only page *labels* changed, not retrieval itself.
 
 ### 7.2 Chunking Strategy (R7)
 
@@ -289,10 +289,16 @@ because it gates infrastructure decisions that are expensive to revisit later �
 above all **changing the embedding model**. No model swap (nor chunking change)
 ships without before/after numbers from this eval.
 
-- **Golden set:** `eval/retrieval.jsonl` — curated questions with the document
-  and page(s) where the answer lives. Question wording is written from the
-  user's perspective, not copied from the manuals, so lexical overlap doesn't
-  inflate scores. These pairs seed the full golden dataset later.
+- **Golden set:** `eval/golden.jsonl` (the single source of truth shared
+  with §13's full benchmark), filtered to the retrieval-measurable cases —
+  answerable (not `expect_refusal`) and single-turn (no `history`, since
+  this eval runs no query rewriting). Question wording is written from the
+  user's perspective, not copied from the manuals, so lexical overlap
+  doesn't inflate scores. (Historically a separate `eval/retrieval.jsonl`
+  seeded the full golden dataset; it was merged back once the duplication
+  proved a drift risk — the two files had to be page-shifted in lockstep —
+  and a coverage gap: the figure-dependent questions never reached the
+  retrieval eval.)
 - **Metrics:** recall@k (is an expected page in the top-k chunks?) and MRR,
   reported both for dense retrieval alone (embeddings — the retriever a
   model swap actually changes, and the gate for any swap) and for the full
@@ -365,7 +371,7 @@ This table is the contract between Compose, the config module (Pydantic settings
 │   └── uv.lock
 ├── frontend/              # Next.js app
 ├── docs/                  # the two HP PDFs + checksums.txt (pinned SHA-256s)
-├── eval/                  # metrics.py, retrieval.{py,jsonl}, golden.{py,jsonl},
+├── eval/                  # metrics.py, retrieval.py, golden.{py,jsonl},
 │                          # judge.py, refusal.py, report.py, run.py (all live)
 ├── loadtest/              # locustfile.py, REPORT.md
 ├── .github/workflows/     # CI: lint, types, fast suite + coverage, commitlint
