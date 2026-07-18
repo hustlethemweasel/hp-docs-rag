@@ -1,7 +1,8 @@
 # Retrieval Eval Report
 
-Retrieval quality on the golden set (`retrieval.jsonl`, 24 questions), per
-the retrieval eval described in SPEC.md. Run with
+Retrieval quality on the golden set — the retrieval-measurable subset of
+`golden.jsonl` (answerable, single-turn; 29 questions), per the retrieval
+eval described in SPEC.md. Run with
 `uv run --project backend python -m eval.retrieval` against a fully ingested
 database. The runner reports dense-only retrieval (the gate for
 embedding-model swaps) and the full hybrid pipeline (what production runs)
@@ -10,12 +11,13 @@ side by side.
 ## Current state (as of 2026-07-18)
 
 Measured against the production index (522 chunks: 419 text + 103 figure
-captions; fixed chunker, max 450 tokens; printed-page numbering):
+captions; fixed chunker, max 450 tokens; printed-page numbering), on the
+29-question basis (see the golden dataset section for the 24 → 29 change):
 
 | Configuration | recall@6 | recall@20 | MRR |
 |---|---|---|---|
-| dense only (harrier) | 0.958 | 0.958 | 0.833 |
-| hybrid — production (dense + FTS, RRF k=60) | 0.958 | 0.958 | 0.835 |
+| dense only (harrier) | 0.966 | 0.966 | 0.796 |
+| hybrid — production (dense + FTS, RRF k=60) | 0.966 | 0.966 | 0.780 |
 
 Decisions in force, each detailed in its own section below:
 
@@ -23,9 +25,10 @@ Decisions in force, each detailed in its own section below:
   rejected twice — the second time under fair conditions after a
   contamination in the first trial was found and eliminated.
 - **Hybrid retrieval (dense + Postgres FTS, RRF): production.** Measured
-  ≈ dense on this golden set; kept — the sparse leg is nearly free, the
-  set's one exact-token query improved, and the set under-represents the
-  query shape FTS exists for.
+  ≈ dense on this golden set (MRR within ±0.02 of dense on both the 24-
+  and 29-question bases, edge flipping with the basis); kept — the sparse
+  leg is nearly free, the set's one exact-token query improved, and the
+  set under-represents the query shape FTS exists for.
 - **Cross-encoder re-ranker: not adopted**; spike code removed from the
   tree (restorable from commit `f1b92a9`).
 - **`REFUSAL_THRESHOLD=0.0`, kept** — neither candidate score signal
@@ -39,9 +42,12 @@ Decisions in force, each detailed in its own section below:
 
 ## Embedding model selection: harrier vs. e5-small-v2
 
+Both trials ran on the original 24-question basis (pre-unification — see
+the golden dataset section):
+
 | Model | Dim | recall@6 | recall@20 | MRR | Verdict |
 |---|---|---|---|---|---|
-| microsoft/harrier-oss-v1-270m (current) | 640 | 0.958 | 0.958 | 0.833 | **kept** |
+| microsoft/harrier-oss-v1-270m | 640 | 0.958 | 0.958 | 0.833 | **kept** |
 | intfloat/e5-small-v2 (fair re-trial) | 384 | 0.917 | 0.958 | 0.731 | rejected |
 
 **Original trial (2026-07-17).** e5-small-v2 was trialed for its size
@@ -146,12 +152,17 @@ measured, and hybrid had at one point been assumed to be the mitigation
 for the `f-add-ram` miss. The runner now reports both: dense via the real
 `ChunkRepository`, hybrid via the real production `HybridRetriever`
 (`top_k` widened to 20 only so recall@20 is measurable; rank order is
-unaffected):
+unaffected). On the original 24-question basis:
 
 | | recall@6 | recall@20 | MRR |
 |---|---|---|---|
 | dense only | 0.958 | 0.958 | 0.833 |
 | hybrid (dense + FTS, RRF k=60) | 0.958 | 0.958 | **0.835** |
+
+On the wider 29-question basis after the dataset unification, the tiny MRR
+edge flips (dense 0.796 vs hybrid 0.780 — one figure question drops rank
+1 → 2 under hybrid), reinforcing rather than changing the conclusion: the
+two configurations are within noise of each other on this set.
 
 Notes (2026-07-18):
 
@@ -177,17 +188,38 @@ Notes (2026-07-18):
   assumption behind it with a measurement and an honest note about the
   set's coverage.
 
-## Golden dataset (`golden.jsonl`)
+## Golden dataset (`golden.jsonl` — single source for both evals)
 
-37 curated Q&A pairs across both manuals, seeded from `retrieval.jsonl`'s
-24 factual/procedure questions plus new cases added for Milestone 5: 5
-figure-dependent questions grounded in real indexed `figure_caption`
-chunks (scanner callouts p. 8, SSD/RAM/keyboard/WLAN diagrams in the OMEN
-guide), 4 multi-turn follow-ups that reuse an earlier question's page
-range but require resolving a pronoun/reference from the prior turn, and
-4 negative (unanswerable) questions from unrelated domains (car tire
-pressure, router admin passwords, Thunderbolt 5 support, HP's return
-policy).
+37 curated Q&A pairs across both manuals: 24 factual/procedure questions
+(originally curated as a separate `retrieval.jsonl` that seeded this
+file), plus cases added for Milestone 5 — 5 figure-dependent questions
+grounded in real indexed `figure_caption` chunks (scanner callouts p. 8,
+SSD/RAM/keyboard/WLAN diagrams in the OMEN guide), 4 multi-turn follow-ups
+that reuse an earlier question's page range but require resolving a
+pronoun/reference from the prior turn, and 4 negative (unanswerable)
+questions from unrelated domains (car tire pressure, router admin
+passwords, Thunderbolt 5 support, HP's return policy).
+
+**Dataset unification (2026-07-18).** `retrieval.jsonl` had remained in
+the tree as the retrieval eval's input — a strict content subset of this
+file maintained in parallel, which was both a drift risk (the
+page-numbering shift had to touch both files in lockstep) and a coverage
+gap (the figure questions, though single-turn and perfectly
+retrieval-measurable, never reached the retrieval eval — so retrieval
+over `figure_caption` chunks was only ever exercised at LLM-judge cost).
+It was deleted; the retrieval eval now filters this file to its
+measurable cases (`retrieval_cases()` in `eval/golden.py`: answerable,
+single-turn), widening its basis from 24 to 29 questions. Effect of the
+basis change alone (the shared 24 questions rank identically before and
+after):
+
+| Dense retrieval | recall@6 | recall@20 | MRR |
+|---|---|---|---|
+| 24-question basis (historical sections above) | 0.958 | 0.958 | 0.833 |
+| 29-question basis (current; adds the 5 figure questions) | 0.966 | 0.966 | 0.796 |
+
+The MRR dip is composition, not regression: the figure questions hit at
+ranks 4/1/3/1/2 — all within top-6, none previously counted.
 
 ## Refusal threshold tuning (Milestone 5)
 
