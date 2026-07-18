@@ -294,8 +294,12 @@ ships without before/after numbers from this eval.
   user's perspective, not copied from the manuals, so lexical overlap doesn't
   inflate scores. These pairs seed the full golden dataset later.
 - **Metrics:** recall@k (is an expected page in the top-k chunks?) and MRR,
-  reported for dense retrieval (embeddings) — the retriever a model swap
-  actually changes.
+  reported both for dense retrieval alone (embeddings — the retriever a
+  model swap actually changes, and the gate for any swap) and for the full
+  hybrid pipeline (dense + FTS fused with RRF, via the real
+  `HybridRetriever`) — what production actually retrieves, and the direct
+  evidence for §8's claim that keyword search complements embeddings on
+  exact-token queries.
 - **Runner:** `python -m eval.retrieval` against an ingested database →
   per-question hits + aggregate table; results recorded in `eval/REPORT.md`
   when used to justify a change.
