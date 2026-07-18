@@ -36,18 +36,21 @@ class PipelineIndexer:
             logger.info("document_already_indexed", document=doc.name)
             return 0
 
-        pages = parse_pdf(doc.path)
+        parsed = parse_pdf(doc.path)
         text_chunks = chunk_pages(
-            pages,
+            parsed.pages,
             chunk_tokens=self.chunk_tokens,
             chunk_overlap=self.chunk_overlap,
             count_tokens=self.embedder.count_tokens,
         )
         rows = self._text_rows(text_chunks)
-        rows += await asyncio.to_thread(self._figure_rows, doc.path)
+        rows += await asyncio.to_thread(self._figure_rows, doc.path, parsed.page_offset)
 
         document_id = await self.documents.insert(
-            title=doc.name, filename=doc.name, sha256=doc.sha256, page_count=len(pages)
+            title=doc.name,
+            filename=doc.name,
+            sha256=doc.sha256,
+            page_count=len(parsed.pages),
         )
         await self.chunks.insert_many(document_id, rows)
         logger.info("document_indexed", document=doc.name, chunk_count=len(rows))
@@ -71,7 +74,7 @@ class PipelineIndexer:
             for chunk, embedding in zip(chunks, embeddings, strict=True)
         ]
 
-    def _figure_rows(self, path: Path) -> list[ChunkRow]:
+    def _figure_rows(self, path: Path, page_offset: int) -> list[ChunkRow]:
         figures = extract_figures(path)
         with ThreadPoolExecutor(max_workers=CAPTION_CONCURRENCY) as pool:
             captions = list(pool.map(self._caption_or_none, figures))
@@ -89,10 +92,12 @@ class PipelineIndexer:
             ChunkRow(
                 content=caption,
                 embedding=embedding,
-                page_start=figure.page,
-                page_end=figure.page,
+                page_start=max(1, figure.page - page_offset),
+                page_end=max(1, figure.page - page_offset),
                 section=None,
                 chunk_type="figure_caption",
+                # figure_ref keeps the raw physical page — it identifies the
+                # figure within extract_figures's own output, not a citation.
                 figure_ref=f"page-{figure.page}-fig-{figure.index}",
                 token_count=self.embedder.count_tokens(caption),
             )

@@ -134,6 +134,49 @@ async def test_still_indexes_text_when_captioning_is_unreachable(tmp_path):
     assert rows[0].chunk_type == "text"
 
 
+async def test_figure_page_numbers_use_the_documents_own_printed_numbering(tmp_path):
+    """extract_figures reports the raw physical page (a separate PyMuPDF
+    pass from parse_pdf's pymupdf4llm one); a load-test-adjacent bug report
+    caught that figure citations kept the physical page even after text
+    citations were corrected for a document's front matter offset — the
+    same correction must apply to both.
+    """
+    doc_path = tmp_path / "envy.pdf"
+    doc = fitz.open()
+    # Front matter: no printed page number, establishes nothing on its own.
+    cover = doc.new_page()
+    cover.insert_text((72, 72), "Cover page.", fontsize=10, fontname="helv")
+    # Body: printed page number sits alone as the page's own last line. Three
+    # confident readings are needed to clear _detect_page_offset's vote
+    # threshold (max(3, page_count // 4)).
+    for printed_number in (1, 2, 3):
+        page = doc.new_page()
+        page.insert_text(
+            (72, 72), f"Body page {printed_number}.", fontsize=10, fontname="helv"
+        )
+        page.insert_text(
+            (72, 750),
+            f"Chapter 1 overview {printed_number}",
+            fontsize=8,
+            fontname="helv",
+        )
+    # The figure sits on the last physical page — printed page 3.
+    doc[-1].insert_image(
+        fitz.Rect(72, 300, 272, 500), pixmap=solid_pixmap(200, 200, (255, 0, 0))
+    )
+    doc.save(str(doc_path))
+    verified = VerifiedDocument(name="envy.pdf", path=doc_path, sha256="a" * 64)
+    indexer, _, captioner, _, chunks = make_indexer()
+
+    await indexer.index(verified)
+
+    _, rows = chunks.insert_many.call_args.args
+    figure_rows = [r for r in rows if r.chunk_type == "figure_caption"]
+    assert len(figure_rows) == 1
+    assert figure_rows[0].page_start == 3
+    assert figure_rows[0].page_end == 3
+
+
 async def test_one_failed_caption_does_not_drop_the_other_figures(tmp_path):
     doc_path = tmp_path / "envy.pdf"
     doc = fitz.open()
