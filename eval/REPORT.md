@@ -54,6 +54,37 @@ Notes (2026-07-17):
   "How do I add more RAM to this machine?" miss remains — expected, since
   it's a vocabulary gap, not a chunking artifact.
 
+## Page-numbering fix: printed page number, not physical PDF position
+
+A user-reported bug: citations didn't match the page the manual itself
+prints — e.g. "p. 65" for content the HP ENVY guide's own footer labels
+"p. 59". Both manuals have front matter (cover, notices, table of contents)
+before their own "page 1"; pymupdf4llm's page index is physical PDF
+position, offset from what's printed on the page by a constant (6 for the
+ENVY guide, 7 for the OMEN guide — verified against every sampled page,
+including appendices/index). `parse_pdf` now detects this offset per
+document (majority vote across pages whose printed number can be read from
+the page's own trailing text) and applies it to both text and figure-caption
+page numbers.
+
+This golden set's `pages` values were themselves curated against physical
+PDF position (i.e., the pre-fix convention — confirmed directly: the
+`f-ink-level` question's answer sits at physical page 62, printed page 56;
+the original entry said `[62]`), so they were shifted by the same per-document
+offset to stay valid evidence for the new, corrected convention:
+
+| | recall@6 | recall@20 | MRR |
+|---|---|---|---|
+| Before fix (physical-page pages, physical-page citations) | 0.958 | 0.958 | 0.833 |
+| After fix (printed-page pages, printed-page citations) | 0.958 | 0.958 | 0.833 |
+
+Unchanged, as expected — only page *labels* moved, not retrieval itself
+(same chunks, same embeddings, same ranking). Documents were re-ingested
+against the real database (522 chunks, unchanged count) to apply the fix to
+live data; a live query re-verified against the actual PDF footer text
+("Replace the cartridges 59" / "60 Chapter 6 Manage cartridges" on the two
+physical pages the system now cites as "p. 59-60").
+
 ## Golden dataset (`golden.jsonl`)
 
 37 curated Q&A pairs across both manuals, seeded from `retrieval.jsonl`'s 24
