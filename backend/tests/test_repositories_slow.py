@@ -174,6 +174,40 @@ async def test_sparse_search_returns_nothing_for_unmatched_terms(
     assert hits == []
 
 
+async def test_sparse_search_finds_a_token_wrapped_in_a_sentence(
+    connection, searchable_document
+):
+    # The catalog chunk contains the part number but not every other word
+    # of the question ("AcmeCorp") — conjunctive websearch semantics would
+    # return nothing. The fictional brand keeps the test independent of
+    # whatever corpus shares the database.
+    documents = DocumentRepository(connection)
+    document_id = await documents.insert(
+        title="OMEN Guide", filename="omen.pdf", sha256="f" * 64, page_count=1
+    )
+    await ChunkRepository(connection).insert_many(
+        document_id,
+        [
+            ChunkRow(
+                content="|External DVD±RW drive|990077-123|",
+                embedding=unit_vector(3),
+                page_start=1,
+                page_end=1,
+                section=None,
+                chunk_type="text",
+                figure_ref=None,
+                token_count=6,
+            )
+        ],
+    )
+
+    hits = await ChunkRepository(connection).sparse_search(
+        "What is AcmeCorp 990077-123?", limit=5
+    )
+
+    assert [c.content for c in hits] == ["|External DVD±RW drive|990077-123|"]
+
+
 async def test_insert_many_is_a_no_op_for_an_empty_list(connection):
     documents = DocumentRepository(connection)
     document_id = await documents.insert(

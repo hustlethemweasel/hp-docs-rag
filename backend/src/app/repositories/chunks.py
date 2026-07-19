@@ -6,6 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.repositories.schema import chunks_table, documents_table
 
 
+def or_websearch(query: str) -> str:
+    """Rewrite free text into websearch OR-syntax, one quoted term per word.
+
+    websearch_to_tsquery ANDs every word by default, which defeats
+    exact-token lookups: the chunk holding the token must also contain
+    every ordinary word around it. Quoting keeps hyphenated tokens like
+    part numbers intact as phrase queries; stop words drop out server-side.
+    """
+    words = [word.replace('"', "") for word in query.split()]
+    return " OR ".join(f'"{word}"' for word in words if word)
+
+
 @dataclass(frozen=True)
 class ChunkRow:
     content: str
@@ -85,8 +97,8 @@ class ChunkRepository:
         return [self._retrieved(row) for row in result]
 
     async def sparse_search(self, query: str, *, limit: int) -> list[RetrievedChunk]:
-        """Top chunks by Postgres full-text rank for a websearch-style query."""
-        tsquery = sa.func.websearch_to_tsquery("english", query)
+        """Top chunks by Postgres full-text rank, OR-of-words semantics."""
+        tsquery = sa.func.websearch_to_tsquery("english", or_websearch(query))
         score = sa.func.ts_rank(chunks_table.c.tsv, tsquery)
         result = await self._connection.execute(
             self._retrieval_select(score.label("score"))
