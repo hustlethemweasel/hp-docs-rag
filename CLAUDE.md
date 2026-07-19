@@ -52,82 +52,41 @@ Equivalent raw commands still work from `backend/` if mise isn't installed
 
 ## Status
 
-- **Milestone 1 done:** Compose, baseline migration (verified against real
-  pg16+pgvector, reversible), health endpoint, checksum-verified ingest
-  scaffolding, CI (fast gate + slow suite + commitlint).
-- **Milestone 2 done:** pymupdf4llm parsing → section-aware chunking (~450
-  tokens, ~80 overlap) → harrier embeddings (asymmetric: query-side
-  instruction prompt only) → pgvector writes, verified end-to-end in Compose
-  against both real PDFs (515 chunks). Figure captioning is provider-selectable
-  (`LLM_PROVIDER=anthropic|ollama`) via `build_captioner`. A retrieval-only
-  eval (`eval/`) was pulled forward from Milestone 5 to gate model/chunking
-  changes with recall@k/MRR evidence before they ship — see `eval/REPORT.md`
-  for the harrier-vs-e5-small-v2 decision.
-- **Milestone 3 done:** `HybridRetriever` (dense + Postgres FTS, RRF fusion
-  k=60, top-6, refusal-threshold guard) → `ChatProvider` abstraction
-  (`AnthropicProvider`, `OllamaProvider`, `ScriptedProvider`; `openai` still
-  unimplemented, matching the M2 captioning factory) → history windowing +
-  query rewriting → `ChatService` orchestration → SSE chat endpoint +
-  conversation CRUD, all backed by real `conversations`/`messages`
-  repositories. 106 fast tests @ 92.8% coverage. Verified live (curl) against
-  real ingested chunks and the real Anthropic provider: cited multi-turn
-  answers, correct query rewriting on a pronoun follow-up, persisted history,
-  and a terminal `error` event with the partial message saved as
-  `status='error'` on an unreachable-provider run.
-- **Milestone 4 done:** Next.js 16 App Router SPA — conversation sidebar
-  (create/switch/delete), streamed chat (POST-based SSE, since `EventSource`
-  can't send a body), citation chips, history restored on reload via
-  `X-User-Id`. 37 Vitest/RTL tests. CORS restricted to the frontend origin.
-  `frontend` Compose service rebuilt as a real multi-stage Next.js build.
-  Verified live in the browser against real ingested chunks and the real
-  Anthropic provider. Manual verification (not the unit suite) caught two
-  real bugs: CORS middleware added inside `lifespan()` crashed under a real
-  ASGI server (Starlette locks its middleware stack on the first call,
-  including the lifespan dispatch itself — fixed by wiring it in
-  `create_app()` instead), and the sidebar didn't refresh after a message
-  completed, leaving a new conversation's title blank until reload (fixed
-  with a shared `ConversationsContext`).
-- **Milestone 5 done:** 37-question golden set (`eval/golden.jsonl`) across
-  factual, procedure, figure-dependent, multi-turn, and negative categories,
-  seeded from `eval/retrieval.jsonl`. `eval/run.py` scores RAGAS-style
-  LLM-as-judge metrics (faithfulness, answer relevancy, context
-  precision/recall, refusal correctness) against the real `HybridRetriever`
-  + configured `ChatProvider`, temperature pinned to 0; results cached
-  per-provider under `eval/results/` (gitignored) and rendered into
-  `eval/REPORT.md`. Live run against claude-haiku-4-5: refusal accuracy
-  0.973, context recall 0.970, context precision 0.748, faithfulness 0.915,
-  answer relevancy 0.938. `REFUSAL_THRESHOLD` tuning investigated the fused
-  RRF score and raw dense cosine similarity as candidate signals — neither
-  cleanly separates negative from positive cases in this embedding space
-  without costing real recall, so it stays at 0; the real gap turned out to
-  be the benchmark's own refusal-phrase detector missing valid refusal
-  phrasings, fixed with before/after evidence (0.919 → 0.973). The
-  cross-encoder re-ranker open question (SPEC §18) is resolved: a spike
-  (`eval/rerank_experiment.py`) showed a wash on the golden set (recall@6
-  unchanged, MRR −0.006, context precision +0.032) — not adopted. 142 fast
-  backend tests.
-- The oversized-chunk edge case the eval surfaced (sentence-less blocks, e.g.
-  large markdown tables, bypassing the ~450-token target) is fixed — a hard
-  word-window fallback in the chunker, evidence in `eval/REPORT.md`.
-- **Milestone 6 done:** `RequestIDMiddleware` + structured error envelope
-  closed R2. `loadtest/locustfile.py` drives the real conversation-create +
-  SSE chat flow; a `locust` Compose service (`loadtest` profile) runs it
-  headless. `LLM_PROVIDER=scripted` makes `ScriptedProvider` selectable on a
-  live `api` for load-test scenario (a). That scenario caught and fixed two
-  real bugs in sequence: synchronous query embedding blocking uvicorn's
-  single-process event loop for *all* concurrent requests, not just
-  embedding ones (`asyncio.to_thread`, TDD) — which, once fixed, exposed a
-  PyTorch thread-safety race on the shared embedding model now genuinely
-  called concurrently (`threading.Lock` in `Embedder`, TDD). The DB
-  connection pool was also sized up with `pool_pre_ping=True`
-  (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW`, TDD). Full ramp, before/after evidence,
-  and scenario (b) (real claude-haiku-4-5 provider) results are in
-  `loadtest/REPORT.md`: scenario (a) sustains ~891 req/min within threshold
-  (60 users, zero errors) after all three fixes — up from ~541 req/min
-  pre-fix, roughly 3x the safe-concurrency ceiling; scenario (b) confirms
-  LLM generation dominates (p95 ~8.5s), ~208 req/min at 10 users, zero
-  errors. 152 fast backend tests @ 93.4% coverage. SPEC.md §3's
-  requirements table reads Done on every row.
+All six milestones are done — SPEC.md's requirements table reads Done on
+every row, with per-milestone evidence recorded in SPEC.md's Milestones
+section. This section is the current state; the history (which bugs each
+harness caught, which decisions the evals settled) lives in SPEC.md,
+`eval/REPORT.md`, and `loadtest/REPORT.md`.
+
+- **Ingest:** pymupdf4llm parsing → section-aware chunking (~450 tokens, ~80
+  overlap, hard word-window fallback for sentence-less blocks like large
+  tables) → harrier embeddings (asymmetric: query-side instruction prompt
+  only) → pgvector. Figure captioning is provider-selectable via
+  `build_captioner` (`LLM_PROVIDER=anthropic|ollama`). Both real PDFs
+  ingested end-to-end in Compose (515 chunks).
+- **Serving:** `HybridRetriever` (dense + Postgres FTS, RRF k=60, top-6,
+  refuses when retrieval comes back empty) → history windowing + query
+  rewriting → `ChatService` → SSE chat endpoint + conversation CRUD, with
+  `RequestIDMiddleware` and a structured error envelope. Providers:
+  `AnthropicProvider`, `OllamaProvider`, `ScriptedProvider` (fast suite +
+  load-test scenario (a)). The never-implemented `openai` option and the
+  dead `REFUSAL_THRESHOLD` knob were removed in the post-M6 polish pass.
+- **Frontend:** Next.js 16 App Router SPA — conversation sidebar
+  (create/switch/delete), POST-based SSE streaming (`EventSource` can't send
+  a body), citation chips, history restored on reload via `X-User-Id`; CORS
+  restricted to the frontend origin.
+- **Evidence:** `eval/REPORT.md` — retrieval eval (recall@k/MRR, the gate
+  for model/chunking changes) and the response-quality benchmark on the
+  37-question golden set (`eval/golden.jsonl`; on claude-haiku-4-5: refusal
+  accuracy 0.973, context recall 0.970, faithfulness 0.915, answer relevancy
+  0.938). `loadtest/REPORT.md` — scenario (a) ~891 req/min within threshold
+  at 60 users, scenario (b) LLM-dominated (p95 ~8.5s). The rejected
+  cross-encoder re-ranker spike is restorable from commit `f1b92a9`.
+- **Suites:** 155 fast backend tests @ ~93.5% coverage; 37 Vitest/RTL
+  frontend tests.
+- Verified live (browser + curl) against real ingested chunks and the real
+  Anthropic provider. The Ollama chat path has had no equivalent live
+  verification pass yet.
 
 ## Layout
 
