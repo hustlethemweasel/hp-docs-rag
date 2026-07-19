@@ -26,6 +26,15 @@ def test_detects_other_refusal_phrasing_from_the_model():
     assert (
         is_refusal("Thunderbolt 5 is not mentioned in the available context.") is True
     )
+    # Observed verbatim from qwen3.5:4b during the live Ollama verification —
+    # third-person singular, unlike the "do not contain" already listed.
+    assert (
+        is_refusal(
+            "The provided context does not contain information about the "
+            "capital of France."
+        )
+        is True
+    )
 
 
 def test_does_not_flag_a_normal_grounded_answer():

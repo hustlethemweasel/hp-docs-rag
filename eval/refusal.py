@@ -10,6 +10,7 @@ REFUSAL_PHRASES = [
     "not in the documents",
     "couldn't find this in the hp documents",
     "doesn't contain",
+    "does not contain",
     "do not contain",
     "don't have information",
     "no information about this",
