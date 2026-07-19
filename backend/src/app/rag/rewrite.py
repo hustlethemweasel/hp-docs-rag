@@ -1,12 +1,17 @@
 from app.providers.base import ChatMessage, ChatProvider
 
+# Wording tuned against qwen3.5:4b, not just claude: the 4B model ignores a
+# parenthetical "in English" (it rewrote pt-BR questions in Portuguese), and
+# any clause about copying part numbers/error codes makes it append literal
+# "[Part Number]" placeholders. The imperative MUST phrasing translates
+# reliably, and real tokens survive the rewrite without being asked for.
 REWRITE_SYSTEM_PROMPT = (
-    "Rewrite the user's latest message as a standalone search query in "
-    "English (the manuals' language, whatever language the user writes in) "
-    "for retrieving relevant manual passages, resolving pronouns and "
-    "implicit references using the conversation history. Keep exact tokens "
-    "like part numbers and error codes verbatim. Reply with only the "
-    "rewritten query, no preamble."
+    "Translate and rewrite the user's latest message as a standalone "
+    "search query written in English, for retrieving passages from "
+    "English-language manuals. The query MUST be in English even when "
+    "the user writes in another language. Resolve pronouns and implicit "
+    "references using the conversation history. Reply with only the "
+    "rewritten English query, no preamble."
 )
 
 
