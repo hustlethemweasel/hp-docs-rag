@@ -21,6 +21,16 @@ point, for both scenarios.
 Both scenarios run the identical script; the only difference is how the
 `api` instance under test is configured (`LLM_PROVIDER`).
 
+**Staleness note (2026-07-19):** these numbers predate the always-rewrite
+change (SPEC's multilingual section) — first-turn messages now make two
+provider calls (rewrite + answer) instead of one, so scenario (a)'s
+per-message cost includes one extra scripted stream per first turn that
+these measurements never saw. Likely immaterial at scripted latencies
+(~1s per 36-token stream, on requests already measured in seconds), and
+scenario (b)'s conclusion (LLM generation dominates) only strengthens
+with a second LLM call — but strictly, re-run to reconfirm the ~891
+req/min figure.
+
 ---
 
 ## Scenario (a) — `LLM_PROVIDER=scripted`
