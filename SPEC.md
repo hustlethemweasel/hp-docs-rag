@@ -275,13 +275,13 @@ Per the constitution (§2): development is test-driven, tests are the behavior s
 ## 13. Response Quality Benchmark (R13)
 
 - **Golden dataset:** ~30 curated Q&A pairs stored in `eval/golden.jsonl`, covering both documents — factual lookups (specs, part numbers), procedures (cartridge replacement, battery removal), **figure-dependent questions** (validates the captioning pipeline in §7.4), multi-turn follow-ups, and **negative cases** (questions the docs can't answer, expecting an honest refusal).
-- **Metrics (RAGAS-style, LLM-as-judge with the configured provider):**
+- **Metrics (RAGAS-style, LLM-as-judge pinned to `claude-haiku-4-5` regardless of `LLM_PROVIDER`, so per-provider scores share one grader and are comparable — a judge that swaps with the generator would score each provider on its own curve, and a 4B local judge is not a credible grader; requires `ANTHROPIC_API_KEY` even for local-provider runs):**
   - *Faithfulness* — is the answer supported by retrieved context?
   - *Answer relevancy* — does it address the question?
   - *Context precision/recall* — did retrieval surface the right chunks (golden set stores expected pages)?
   - *Refusal correctness* — negative cases answered with "not in the documents".
 - **Runner:** `python -m eval.run` → scores table + per-question breakdown in `eval/REPORT.md`. Also used as the regression harness when tuning chunk size, top-k, or hybrid weights.
-- **Reproducibility:** benchmark runs pin `temperature=0` (and fixed seeds where the provider supports them) so tuning comparisons are apples-to-apples rather than sampling noise.
+- **Reproducibility:** benchmark runs pin `temperature=0` (and fixed seeds where the provider supports them) so tuning comparisons are apples-to-apples rather than sampling noise. (The original harness passed the generation provider to the judge — fine while only the Anthropic provider had been benchmarked, since haiku graded haiku either way, but self-judging would have invalidated the cross-provider comparison; the judge was pinned before the first Ollama run.)
 
 ### 13.1 Retrieval eval (pulled forward from Milestone 5)
 
