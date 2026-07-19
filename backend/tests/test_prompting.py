@@ -75,3 +75,11 @@ def test_build_system_prompt_instructs_grounding_citation_and_refusal():
         "isn't in the documents" in prompt.lower()
         or "not in the documents" in prompt.lower()
     )
+
+
+def test_build_system_prompt_instructs_answering_in_the_users_language():
+    prompt = build_system_prompt(
+        [chunk(document="ENVY Guide", page_start=5, page_end=5, content="text")]
+    )
+
+    assert "language of the user's question" in prompt.lower()

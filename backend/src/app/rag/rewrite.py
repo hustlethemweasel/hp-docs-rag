@@ -1,9 +1,11 @@
 from app.providers.base import ChatMessage, ChatProvider
 
 REWRITE_SYSTEM_PROMPT = (
-    "Rewrite the user's latest message as a standalone search query for "
-    "retrieving relevant manual passages, resolving pronouns and implicit "
-    "references using the conversation history. Reply with only the "
+    "Rewrite the user's latest message as a standalone search query in "
+    "English (the manuals' language, whatever language the user writes in) "
+    "for retrieving relevant manual passages, resolving pronouns and "
+    "implicit references using the conversation history. Keep exact tokens "
+    "like part numbers and error codes verbatim. Reply with only the "
     "rewritten query, no preamble."
 )
 

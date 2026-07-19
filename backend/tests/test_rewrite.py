@@ -33,6 +33,22 @@ async def test_condenses_history_and_question_into_a_standalone_query():
     assert result == "How do I clean the printhead?"
 
 
+async def test_instructs_the_provider_to_rewrite_in_english():
+    # The corpus is English-only; rewriting to English keeps the sparse FTS
+    # leg usable for non-English conversations (SPEC's multilingual section).
+    async def scripted_stream(messages, **kwargs):
+        yield "rewritten"
+
+    provider = create_autospec(ChatProvider, instance=True)
+    provider.stream_chat.side_effect = scripted_stream
+    history = [ChatMessage(role="user", content="My printer won't print.")]
+
+    await rewrite_query(provider, history=history, question="How do I clean it?")
+
+    _, kwargs = provider.stream_chat.call_args
+    assert "in english" in kwargs["system"].lower()
+
+
 async def test_forwards_temperature_to_the_provider_when_given():
     async def scripted_stream(messages, **kwargs):
         yield "rewritten"

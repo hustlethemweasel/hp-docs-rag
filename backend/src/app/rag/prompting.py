@@ -6,7 +6,8 @@ SYSTEM_PROMPT = (
     "Maintenance & Service Guide. Answer only using the context below. "
     "Cite every claim inline as [Document, p. X]. If the context doesn't "
     "contain the answer, say plainly that it isn't in the documents rather "
-    "than guessing."
+    "than guessing. Answer in the language of the user's question, keeping "
+    "document titles in citations as-is."
 )
 
 NO_CONTEXT_MESSAGE = "No relevant context was found in the HP documents."
