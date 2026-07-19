@@ -1,7 +1,7 @@
 # Retrieval Eval Report
 
 Retrieval quality on the golden set — the retrieval-measurable subset of
-`golden.jsonl` (answerable, single-turn; 29 questions), per the retrieval
+`golden.jsonl` (answerable, single-turn; 34 questions), per the retrieval
 eval described in SPEC.md. Run with
 `uv run --project backend python -m eval.retrieval` against a fully ingested
 database. The runner reports dense-only retrieval (the gate for
@@ -11,38 +11,51 @@ within the retrieved top-20 pool, a miss beyond rank 20 scoring zero (the
 same cutoff as recall@20) — except in the re-ranker section, whose spike
 scored top-6 truncated lists (MRR@6, labeled there).
 
-## Current state (as of 2026-07-18)
+## Current state (as of 2026-07-19)
 
 Measured against the production index (522 chunks: 419 text + 103 figure
 captions; fixed chunker, max 450 tokens; printed-page numbering), on the
-29-question basis (see the golden dataset section for the 24 → 29 change):
+34-question basis (see the golden dataset section for the 24 → 29 → 34
+growth):
 
 | Configuration | recall@6 | recall@20 | MRR@20 |
 |---|---|---|---|
-| dense only (harrier) | 0.966 | 0.966 | 0.796 |
-| hybrid — production (dense + FTS, RRF k=60) | 0.966 | 0.966 | 0.780 |
+| dense only (harrier) | 0.941 | 0.941 | 0.782 |
+| hybrid — production (dense + FTS, RRF k=60) | 0.941 | 0.941 | 0.768 |
+
+The 5 exact-token questions added on 2026-07-19 (see the hybrid-vs-dense
+section) lower recall by adding one shared miss (`x-part-lookup-dvd`, a
+part-number lookup that misses under both retrievers), not by regressing
+anything already measured.
 
 Decisions in force, each detailed in its own section below:
 
 - **Embedding model: `microsoft/harrier-oss-v1-270m`, kept.** e5-small-v2
   rejected twice — the second time under fair conditions after a
   contamination in the first trial was found and eliminated.
-- **Hybrid retrieval (dense + Postgres FTS, RRF): production.** Measured
-  ≈ dense on this golden set (MRR within ±0.02 of dense on both the 24-
-  and 29-question bases, edge flipping with the basis); kept — the sparse
-  leg is nearly free, the set's one exact-token query improved, and the
-  set under-represents the query shape FTS exists for.
+- **Hybrid retrieval (dense + Postgres FTS, RRF): production, now under
+  review.** Measured ≈ dense on the paraphrase-heavy set (MRR within ±0.02
+  across the 24-/29-/34-question bases). The 2026-07-19 exact-token slice —
+  built specifically to give FTS its home turf — came back *identical* to
+  dense (both 0.800 recall@6 / 0.700 MRR@20), and traced the null result to
+  a concrete cause: `websearch_to_tsquery` ANDs every query word, so a
+  natural-language token lookup fails whenever the terse chunk holding the
+  token lacks one of the surrounding words. The sparse leg as configured is
+  not earning its place; see the hybrid-vs-dense section for the fork
+  (fix the FTS query construction, or remove hybrid).
 - **Cross-encoder re-ranker: not adopted**; spike code removed from the
   tree (restorable from commit `f1b92a9`).
 - **`REFUSAL_THRESHOLD`: removed** — neither candidate score signal
   separates negative from positive cases in this embedding space; the
   retriever refuses only on empty retrieval.
-- **Known limitation:** "How do I add more RAM to this machine?"
-  (`f-add-ram`) misses under every configuration tried — dense, hybrid,
-  and the re-ranker. "RAM" matches "memory module" neither semantically
-  nor lexically. More broadly, the golden set is deliberately
-  paraphrase-heavy (questions written in the user's voice), so exact-token
-  queries are under-represented.
+- **Known limitations:** two shared misses under every configuration
+  tried (dense, hybrid, re-ranker). "How do I add more RAM to this
+  machine?" (`f-add-ram`) — "RAM" matches "memory module" neither
+  semantically nor lexically. "What is HP spare part 747080-001?"
+  (`x-part-lookup-dvd`) — the token *is* indexed and matches FTS in
+  isolation, but the conjunctive `websearch_to_tsquery` and dense's weak
+  grip on a bare catalog row both miss it (see the hybrid-vs-dense
+  section).
 
 ## Embedding model selection: harrier vs. e5-small-v2
 
@@ -181,20 +194,72 @@ Notes (2026-07-18):
   withdrawn. The question misses under every retriever configuration
   tried to date (dense, hybrid, and the removed cross-encoder re-ranker,
   which could only reorder a fused pool the answer was absent from).
-- **Why hybrid stays anyway:** this golden set is deliberately written in
-  the user's voice (paraphrase-heavy, per SPEC's curation rule), which is
-  dense retrieval's home turf — exact-token queries where FTS should
-  shine are under-represented (one part-number lookup improved; there is
-  little else of that shape to measure). The cost of the sparse leg is
-  one indexed FTS query fused in-process, and the quality benchmark's
-  context metrics already run through the hybrid path. No adoption
-  decision to revisit — hybrid is production; this section replaces the
-  assumption behind it with a measurement and an honest note about the
-  set's coverage.
+- **Why hybrid was kept (through 2026-07-18):** the set is paraphrase-heavy
+  (dense's home turf), so exact-token queries where FTS should shine were
+  under-represented — one part-number lookup improved, and little else of
+  that shape existed to measure. The verdict was "≈ dense, but the set
+  can't fairly test the sparse leg; keep it, the cost is one fused FTS
+  query." The exact-token slice below was added to close exactly that
+  coverage gap — and it changed the reading.
+
+### Exact-token slice (2026-07-19)
+
+Added 5 questions of the shape FTS exists for — a bare error code and four
+part-number lookups, each verified present in the indexed content, curated
+against the actual catalog/table chunks rather than paraphrased (category
+`exact-token`; widens the retrieval basis 29 → 34):
+
+| exact-token slice (n=5) | recall@6 | MRR@20 |
+|---|---|---|
+| dense only | 0.800 | 0.700 |
+| hybrid (dense + FTS, RRF k=60) | **0.800** | **0.700** |
+
+Identical to three decimals — per-question, all five rank the same under
+both retrievers (E3 code rank 2, three part lookups rank 1, the DVD lookup
+a shared miss). On the slice built to be FTS's best case, the sparse leg
+changes *nothing*. Two findings explain why, and both matter more than the
+aggregate:
+
+- **The conjunctive-query defect (`x-part-lookup-dvd`, "What is HP spare
+  part 747080-001?").** This is the case hybrid should own: dense misses
+  the bare catalog row (beyond rank 20), and the token `747080-001` *is*
+  indexed — `tsv @@ websearch_to_tsquery('english','747080-001')` is true
+  in isolation. Yet hybrid still misses. Cause: `websearch_to_tsquery`
+  ANDs every non-stop word, producing `'hp' & 'spare' & 'part' & '747080'
+  <-> '-001'`. The parts-catalog chunk holding the number is terse and
+  contains no "HP" token, so the whole conjunction fails and the FTS leg
+  contributes nothing. The sparse retriever isn't losing on relevance —
+  it's being switched off by its own query construction whenever a user
+  wraps an exact token in an ordinary sentence. This is a fixable bug
+  (extract the token / use OR semantics / add a `simple`-config lane), not
+  an inherent limit of lexical search.
+- **Where dense already suffices, FTS is redundant.** The other three
+  part-number lookups (`N96209-001`, the Realtek WLAN module, the 16 GB
+  DDR5 module) all rank 1 on dense alone — harrier embeds a distinctive
+  alphanumeric token well enough that there is nothing for FTS to add.
+
+**The fork this leaves.** The earlier "keep hybrid, the set just can't test
+it" no longer holds — the set now *can* test it, and the sparse leg as
+configured adds nothing while one of its would-be wins is defeated by a
+query-construction bug. Two honest options:
+
+1. **Fix the FTS query, then re-measure.** Removing the AND semantics is
+   the change that would let `x-part-lookup-dvd` demonstrate the hybrid
+   rationale for real. If a corrected sparse leg moves the slice, hybrid
+   earns its place on evidence for the first time.
+2. **Remove hybrid.** If the fix doesn't move the slice, the sparse leg is
+   dead weight, and dropping it deletes the `tsv` column, the FTS query,
+   and RRF fusion — a real simplification. (It would also moot the
+   cross-lingual "FTS lane goes dark" concern for non-English queries,
+   since dense is the language-agnostic leg.)
+
+Not deciding here: option 1 is a code change gated on a fresh measurement,
+option 2 is a removal. This section records that the "wash" is now a
+measured null result with a diagnosed cause, not an untested assumption.
 
 ## Golden dataset (`golden.jsonl` — single source for both evals)
 
-37 curated Q&A pairs across both manuals: 24 factual/procedure questions
+42 curated Q&A pairs across both manuals: 24 factual/procedure questions
 (originally curated as a separate `retrieval.jsonl` that seeded this
 file), plus cases added for Milestone 5 — 5 figure-dependent questions
 grounded in real indexed `figure_caption` chunks (scanner callouts p. 8,
@@ -202,7 +267,10 @@ SSD/RAM/keyboard/WLAN diagrams in the OMEN guide), 4 multi-turn follow-ups
 that reuse an earlier question's page range but require resolving a
 pronoun/reference from the prior turn, and 4 negative (unanswerable)
 questions from unrelated domains (car tire pressure, router admin
-passwords, Thunderbolt 5 support, HP's return policy).
+passwords, Thunderbolt 5 support, HP's return policy) — and 5 exact-token
+questions added 2026-07-19 (category `exact-token`: a bare error code and
+four part-number lookups, each verified present in the indexed content) to
+give Postgres FTS its home turf in the hybrid-vs-dense comparison.
 
 **Dataset unification (2026-07-18).** `retrieval.jsonl` had remained in
 the tree as the retrieval eval's input — a strict content subset of this
@@ -220,10 +288,13 @@ after):
 | Dense retrieval | recall@6 | recall@20 | MRR@20 |
 |---|---|---|---|
 | 24-question basis (historical sections above) | 0.958 | 0.958 | 0.833 |
-| 29-question basis (current; adds the 5 figure questions) | 0.966 | 0.966 | 0.796 |
+| 29-question basis (adds the 5 figure questions) | 0.966 | 0.966 | 0.796 |
 
 The MRR dip is composition, not regression: the figure questions hit at
-ranks 4/1/3/1/2 — all within top-6, none previously counted.
+ranks 4/1/3/1/2 — all within top-6, none previously counted. The basis
+later grew to 34 with the 2026-07-19 exact-token additions (see the
+hybrid-vs-dense section); the current-state table at the top of this
+report carries those numbers.
 
 ## Refusal threshold tuning (Milestone 5)
 
@@ -322,6 +393,8 @@ them.
 ## Response Quality Benchmark
 
 LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the response-quality benchmark described in SPEC.md. Run with `uv run --project backend python -m eval.run` against a fully ingested database. The judge is pinned to `claude-sonnet-5` regardless of the generation provider, so every provider's answers share one grader; temperature is pinned to 0 on generation and rewrite calls (the judge takes no temperature parameter — removed on Claude 5-family models).
+
+The runs below predate the 2026-07-19 exact-token additions and cover the 37-case set; the 5 new questions are retrieval-only so far (retrieval eval, above) and have not been through the LLM-judge benchmark. Re-run to fold them in.
 
 ### anthropic / claude-haiku-4-5 (37 cases)
 
