@@ -84,9 +84,11 @@ harness caught, which decisions the evals settled) lives in SPEC.md,
   cross-encoder re-ranker spike is restorable from commit `f1b92a9`.
 - **Suites:** 155 fast backend tests @ ~93.5% coverage; 37 Vitest/RTL
   frontend tests.
-- Verified live (browser + curl) against real ingested chunks and the real
-  Anthropic provider. The Ollama chat path has had no equivalent live
-  verification pass yet.
+- Verified live (browser + curl) against real ingested chunks with both the
+  real Anthropic provider and the Ollama local path (`qwen3.5:4b` on host
+  Ollama, Metal, `think:false`): cited procedure answers, pronoun-resolving
+  query rewriting across a multi-turn follow-up, and out-of-domain refusal
+  all confirmed streaming end-to-end through `OllamaProvider`.
 
 ## Layout
 
