@@ -89,6 +89,7 @@ Key decisions and rationale:
 
 - **Single datastore.** pgvector lets Postgres serve as vector DB, full-text index, and relational store for chat history. One fewer container, transactional consistency between messages and retrieval logs, and it's fully open source (R5, R10).
 - **Fixed embedding model, swappable chat model.** The vector index must not change when the chat provider changes. Embeddings are always produced by a local open-source model (`sentence-transformers`, `microsoft/harrier-oss-v1-270m`, 640-dim) running inside the API container on CPU. Only the *generation* step is provider-swappable. This avoids re-indexing and dimension mismatches when switching between cloud and local LLMs. Replacing the embedding model itself (e.g. with a smaller one for faster CPU inference) is allowed only with before/after evidence from the retrieval eval (§13.1) and a full re-ingest.
+- **Local serving via Ollama, not vLLM.** The local provider optimizes for the "runs anywhere via `docker compose up`" goal, not for local-inference throughput. Ollama runs a quantized model on a plain laptop CPU or Apple Silicon (Metal) with one `ollama pull`, and its `images` API keeps the figure-captioning VLM path (§7.4) trivial. vLLM (or TGI/SGLang) would win decisively on concurrent throughput via continuous batching — but that advantage targets a load profile this project deliberately doesn't serve (load-test scenario (a) in §12 isolates infra scaling from LLM cost with `ScriptedProvider`; nothing requires serving many concurrent users through the local LLM), and it effectively requires a CUDA GPU, which contradicts the runs-anywhere goal and has no first-class Apple Silicon support. If this were deployed to GPU hardware fronting real concurrency, vLLM would be the right call — and it's a drop-in via the provider abstraction (§9.3): vLLM ships an OpenAI-compatible server, so `VLLMProvider` is a thin httpx client added with the same three-step change as any provider.
 - **SSE streaming** for token-by-token responses in the chat UI.
 
 ---
@@ -100,7 +101,7 @@ Key decisions and rationale:
 | Frontend | Next.js 14+ (App Router), TypeScript, Tailwind | Chat UI, conversation sidebar, source-citation display |
 | Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async) + asyncpg, Alembic (migrations), structlog (logfmt) | Black code style, ruff lint, pyrefly type checking |
 | Embeddings | sentence-transformers `microsoft/harrier-oss-v1-270m` | 270M, 640-dim, top MTEB score for its size; CPU-friendly, fixed across providers |
-| Generation | Provider layer: Anthropic API, Ollama (`qwen3.5:4b` default — 3.4 GB, vision-capable) | Selected via `LLM_PROVIDER` env var |
+| Generation | Provider layer: Anthropic API, Ollama (`qwen3.5:4b` default — 3.4 GB, vision-capable) | Selected via `LLM_PROVIDER` env var; Ollama over vLLM for local serving (§4 rationale) |
 | Vector DB | Postgres 16 + pgvector (HNSW index) | Also stores chats + FTS index |
 | PDF parsing | PyMuPDF + pymupdf4llm | Best fit for born-digital manuals (fast, reliable text + page numbers, built-in heading/structure detection); also powers figure extraction (§7.4). AGPL — fine for a public repo, noted in README. Docling documented as fallback if the benchmark exposes table-extraction gaps |
 | Tests | pytest, pytest-cov, pytest-asyncio, httpx test client | ≥90% coverage gate |
