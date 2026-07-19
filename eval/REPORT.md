@@ -6,7 +6,10 @@ eval described in SPEC.md. Run with
 `uv run --project backend python -m eval.retrieval` against a fully ingested
 database. The runner reports dense-only retrieval (the gate for
 embedding-model swaps) and the full hybrid pipeline (what production runs)
-side by side.
+side by side. MRR figures are MRR@20 — reciprocal rank of the first hit
+within the retrieved top-20 pool, a miss beyond rank 20 scoring zero (the
+same cutoff as recall@20) — except in the re-ranker section, whose spike
+scored top-6 truncated lists (MRR@6, labeled there).
 
 ## Current state (as of 2026-07-18)
 
@@ -14,7 +17,7 @@ Measured against the production index (522 chunks: 419 text + 103 figure
 captions; fixed chunker, max 450 tokens; printed-page numbering), on the
 29-question basis (see the golden dataset section for the 24 → 29 change):
 
-| Configuration | recall@6 | recall@20 | MRR |
+| Configuration | recall@6 | recall@20 | MRR@20 |
 |---|---|---|---|
 | dense only (harrier) | 0.966 | 0.966 | 0.796 |
 | hybrid — production (dense + FTS, RRF k=60) | 0.966 | 0.966 | 0.780 |
@@ -46,7 +49,7 @@ Decisions in force, each detailed in its own section below:
 Both trials ran on the original 24-question basis (pre-unification — see
 the golden dataset section):
 
-| Model | Dim | recall@6 | recall@20 | MRR | Verdict |
+| Model | Dim | recall@6 | recall@20 | MRR@20 | Verdict |
 |---|---|---|---|---|---|
 | microsoft/harrier-oss-v1-270m | 640 | 0.958 | 0.958 | 0.833 | **kept** |
 | intfloat/e5-small-v2 (fair re-trial) | 384 | 0.917 | 0.958 | 0.731 | rejected |
@@ -101,7 +104,7 @@ silently truncating for any 512-limit model. Fixed with a hard
 word-window fallback in `_split_by_word_window` for units still over
 `chunk_tokens` after sentence splitting; re-ingested and re-ran the eval:
 
-| Model | Dim | recall@6 | recall@20 | MRR | max chunk tokens |
+| Model | Dim | recall@6 | recall@20 | MRR@20 | max chunk tokens |
 |---|---|---|---|---|---|
 | microsoft/harrier-oss-v1-270m | 640 | 0.958 | 0.958 | 0.833 | 450 |
 
@@ -132,7 +135,7 @@ sits at physical page 62, printed page 56; the original entry said
 `[62]`), so they were shifted by the same per-document offset to stay
 valid under the corrected convention:
 
-| | recall@6 | recall@20 | MRR |
+| | recall@6 | recall@20 | MRR@20 |
 |---|---|---|---|
 | Before fix (physical-page pages, physical-page citations) | 0.958 | 0.958 | 0.833 |
 | After fix (printed-page pages, printed-page citations) | 0.958 | 0.958 | 0.833 |
@@ -155,7 +158,7 @@ for the `f-add-ram` miss. The runner now reports both: dense via the real
 (`top_k` widened to 20 only so recall@20 is measurable; rank order is
 unaffected). On the original 24-question basis:
 
-| | recall@6 | recall@20 | MRR |
+| | recall@6 | recall@20 | MRR@20 |
 |---|---|---|---|
 | dense only | 0.958 | 0.958 | 0.833 |
 | hybrid (dense + FTS, RRF k=60) | 0.958 | 0.958 | **0.835** |
@@ -214,7 +217,7 @@ single-turn), widening its basis from 24 to 29 questions. Effect of the
 basis change alone (the shared 24 questions rank identically before and
 after):
 
-| Dense retrieval | recall@6 | recall@20 | MRR |
+| Dense retrieval | recall@6 | recall@20 | MRR@20 |
 |---|---|---|---|
 | 24-question basis (historical sections above) | 0.958 | 0.958 | 0.833 |
 | 29-question basis (current; adds the 5 figure questions) | 0.966 | 0.966 | 0.796 |
@@ -277,7 +280,7 @@ Spiked a cross-encoder re-ranker (`cross-encoder/ms-marco-MiniLM-L-6-v2`)
 on top of the RRF-fused top-20, re-scoring and re-truncating to top-6,
 against the 33 answerable golden questions:
 
-| | recall@6 | MRR | context precision |
+| | recall@6 | MRR@6 | context precision |
 |---|---|---|---|
 | baseline (RRF top-6) | 0.939 | 0.791 | 0.731 |
 | + cross-encoder re-rank | 0.939 | 0.785 | 0.763 |

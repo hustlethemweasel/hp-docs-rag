@@ -75,7 +75,7 @@ harness caught, which decisions the evals settled) lives in SPEC.md,
   (create/switch/delete), POST-based SSE streaming (`EventSource` can't send
   a body), citation chips, history restored on reload via `X-User-Id`; CORS
   restricted to the frontend origin.
-- **Evidence:** `eval/REPORT.md` — retrieval eval (recall@k/MRR, the gate
+- **Evidence:** `eval/REPORT.md` — retrieval eval (recall@k/MRR@20, the gate
   for model/chunking changes) and the response-quality benchmark on the
   37-question golden set, judged by pinned `claude-sonnet-5`:
   claude-haiku-4-5 refusal 1.000 / faithfulness 0.856; local qwen3.5:4b

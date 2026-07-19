@@ -300,7 +300,9 @@ ships without before/after numbers from this eval.
   proved a drift risk — the two files had to be page-shifted in lockstep —
   and a coverage gap: the figure-dependent questions never reached the
   retrieval eval.)
-- **Metrics:** recall@k (is an expected page in the top-k chunks?) and MRR,
+- **Metrics:** recall@k (is an expected page in the top-k chunks?) and
+  MRR@20 (reciprocal rank of the first hit within the retrieved top-20
+  pool; a miss beyond rank 20 scores zero — same cutoff as recall@20),
   reported both for dense retrieval alone (embeddings — the retriever a
   model swap actually changes, and the gate for any swap) and for the full
   hybrid pipeline (dense + FTS fused with RRF, via the real
