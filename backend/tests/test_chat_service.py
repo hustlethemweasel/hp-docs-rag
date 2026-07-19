@@ -64,7 +64,9 @@ async def collect(service, conversation_id, content) -> list[tuple[str, dict]]:
     ]
 
 
-async def test_first_message_skips_rewriting_and_streams_the_answer():
+async def test_first_message_rewrites_retrieves_and_streams_the_answer():
+    # ScriptedProvider replays the same script for the rewrite call and the
+    # answer call, so the search query below equals the streamed answer.
     provider = ScriptedProvider(tokens=["Open ", "the front ", "cover."])
     service, retriever, conversations, messages = make_service(provider=provider)
     retriever.retrieve.return_value = [chunk()]
@@ -72,7 +74,7 @@ async def test_first_message_skips_rewriting_and_streams_the_answer():
 
     events = await collect(service, conversation_id, "How do I open it?")
 
-    retriever.retrieve.assert_called_once_with("How do I open it?")
+    retriever.retrieve.assert_called_once_with("Open the front cover.")
     assert [e for e, _ in events[:-1]] == ["token"] * 3
     assert "".join(p["text"] for _, p in events[:-1]) == "Open the front cover."
     event, payload = events[-1]
@@ -152,13 +154,18 @@ async def test_no_retrieved_chunks_returns_a_refusal_without_calling_the_provide
 
 
 async def test_provider_failure_mid_stream_persists_a_partial_message_and_emits_error():
-    async def flaky_stream(messages, **kwargs):
+    calls = iter(["rewrite", "answer"])
+
+    async def scripted_then_flaky(messages, **kwargs):
+        if next(calls) == "rewrite":
+            yield "how to open the cover"
+            return
         yield "Open "
         yield "the "
         raise httpx.ConnectError("provider unreachable")
 
     provider = create_autospec(ChatProvider, instance=True)
-    provider.stream_chat.side_effect = flaky_stream
+    provider.stream_chat.side_effect = scripted_then_flaky
     service, retriever, conversations, messages = make_service(provider=provider)
     retriever.retrieve.return_value = [chunk()]
     conversation_id = uuid.uuid4()
@@ -173,3 +180,24 @@ async def test_provider_failure_mid_stream_persists_a_partial_message_and_emits_
     assert assistant_call.args[0].status == "error"
     assert assistant_call.args[0].sources is None
     conversations.touch.assert_called_once_with(conversation_id)
+
+
+async def test_provider_failure_during_rewrite_emits_error_without_streaming():
+    async def flaky_stream(messages, **kwargs):
+        raise httpx.ConnectError("provider unreachable")
+        yield  # pragma: no cover — makes this an async generator
+
+    provider = create_autospec(ChatProvider, instance=True)
+    provider.stream_chat.side_effect = flaky_stream
+    service, retriever, conversations, messages = make_service(provider=provider)
+    conversation_id = uuid.uuid4()
+
+    events = await collect(service, conversation_id, "How do I open it?")
+
+    retriever.retrieve.assert_not_called()
+    assert [e for e, _ in events] == ["error"]
+    _, payload = events[-1]
+    assert payload["message"] == "provider unreachable"
+    [_, assistant_call] = messages.insert.call_args_list
+    assert assistant_call.args[0].content == ""
+    assert assistant_call.args[0].status == "error"

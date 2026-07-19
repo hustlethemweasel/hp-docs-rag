@@ -71,7 +71,17 @@ class ChatService:
         if not history_rows:
             await self.conversations.set_title(conversation_id, derive_title(content))
 
-        search_query = await rewrite_query(self.provider, windowed_history, content)
+        started = time.monotonic()
+        try:
+            search_query = await rewrite_query(
+                self.provider, windowed_history, content
+            )
+        except PROVIDER_ERRORS as exc:
+            async for frame in self._fail(
+                conversation_id, user_message_id, "", exc, started
+            ):
+                yield frame
+            return
         chunks = await self.retriever.retrieve(search_query)
 
         if not chunks:

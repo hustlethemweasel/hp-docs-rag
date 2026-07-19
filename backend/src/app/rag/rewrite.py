@@ -16,9 +16,13 @@ async def rewrite_query(
     question: str,
     temperature: float | None = None,
 ) -> str:
-    """Condense history + question into a standalone query; skipped on turn one."""
-    if not history:
-        return question
+    """Condense history + question into a standalone English query.
+
+    Runs on every turn, including the first: retrieval always sees an
+    English query, so the corpus's foreign-language notice pages can't
+    outrank topical chunks on non-English questions (SPEC's multilingual
+    section).
+    """
     messages = [*history, ChatMessage(role="user", content=question)]
     kwargs: dict[str, object] = {"system": REWRITE_SYSTEM_PROMPT}
     if temperature is not None:

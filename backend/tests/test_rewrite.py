@@ -11,12 +11,16 @@ from app.providers.scripted import ScriptedProvider
 from app.rag.rewrite import rewrite_query
 
 
-async def test_skips_rewriting_on_the_first_turn():
-    provider = ScriptedProvider(tokens=["should", " not", " be used"])
+async def test_rewrites_on_the_first_turn_too():
+    # Always-rewrite: turn one translates non-English questions to the
+    # corpus language before retrieval (SPEC's multilingual section).
+    provider = ScriptedProvider(tokens=["How do I ", "swap ink cartridges?"])
 
-    result = await rewrite_query(provider, history=[], question="How do I clean it?")
+    result = await rewrite_query(
+        provider, history=[], question="Como troco os cartuchos?"
+    )
 
-    assert result == "How do I clean it?"
+    assert result == "How do I swap ink cartridges?"
 
 
 async def test_condenses_history_and_question_into_a_standalone_query():
