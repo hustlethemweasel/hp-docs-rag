@@ -300,72 +300,128 @@ commit `f1b92a9` and rerun.
 
 ## Response Quality Benchmark
 
-LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the
-response-quality benchmark described in SPEC.md. Run with
-`uv run --project backend python -m eval.run` against a fully ingested
-database; temperature is pinned to 0 on every provider call for
-reproducibility. Current numbers are from a clean-cache run on 2026-07-18,
-after the page-numbering fix (golden pages and index both on the
-printed-page convention).
+LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the response-quality benchmark described in SPEC.md. Run with `uv run --project backend python -m eval.run` against a fully ingested database. The judge is pinned to `claude-sonnet-5` regardless of the generation provider, so every provider's answers share one grader; temperature is pinned to 0 on generation and rewrite calls (the judge takes no temperature parameter — removed on Claude 5-family models).
 
 ### anthropic / claude-haiku-4-5 (37 cases)
 
 | Metric | Score |
 |---|---|
-| refusal accuracy | 0.973 |
-| context precision | 0.738 |
+| refusal accuracy | 1.000 |
+| context precision | 0.711 |
 | context recall | 0.970 |
-| faithfulness | 0.930 |
-| answer relevancy | 0.911 |
+| faithfulness | 0.856 |
+| answer relevancy | 0.935 |
 
 | Category | n | refusal acc. | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| factual | 10 | 1.000 | 0.742 | 1.000 | 0.935 | 0.978 |
-| figure | 5 | 1.000 | 0.733 | 1.000 | 0.860 | 0.770 |
-| multiturn | 4 | 1.000 | 0.653 | 1.000 | 0.938 | 0.877 |
-| negative | 4 | 0.750 | — | — | — | — |
-| procedure | 14 | 1.000 | 0.762 | 0.929 | 0.950 | 0.923 |
+| factual | 10 | 1.000 | 0.742 | 1.000 | 0.895 | 0.990 |
+| figure | 5 | 1.000 | 0.500 | 1.000 | 0.800 | 0.760 |
+| multiturn | 4 | 1.000 | 0.717 | 1.000 | 0.925 | 0.900 |
+| negative | 4 | 1.000 | — | — | — | — |
+| procedure | 14 | 1.000 | 0.762 | 0.929 | 0.829 | 0.968 |
 
 <details><summary>Per-question breakdown</summary>
 
 | id | category | refusal ok | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| f-wifi-connect | procedure | ✓ | 0.667 | 1.000 | 0.950 | 0.980 |
-| f-paper-jam | procedure | ✓ | 0.833 | 1.000 | 0.950 | 0.980 |
+| f-wifi-connect | procedure | ✓ | 0.667 | 1.000 | 0.750 | 0.950 |
+| f-paper-jam | procedure | ✓ | 0.833 | 1.000 | 0.850 | 0.950 |
 | f-ink-level | factual | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
 | f-swap-cartridges | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 0.950 | 0.950 |
-| f-double-sided | factual | ✓ | 0.200 | 1.000 | 0.950 | 1.000 |
-| f-envelopes | procedure | ✓ | 0.500 | 1.000 | 0.950 | 1.000 |
-| f-scan-phone | procedure | ✓ | 0.417 | 1.000 | 0.950 | 0.950 |
-| f-sleep-timer | factual | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| f-factory-reset | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.950 |
-| f-photo-quality | factual | ✓ | 0.500 | 1.000 | 0.950 | 0.950 |
-| f-wont-print | procedure | ✓ | 0.750 | 1.000 | 0.950 | 0.980 |
-| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| f-add-ram | procedure | ✓ | 0.000 | 0.000 | 0.950 | 0.300 |
-| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.950 | 1.000 |
-| f-open-bottom-cover | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| f-replace-wifi-card | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.900 |
-| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.950 | 0.900 |
-| f-replace-display | procedure | ✓ | 0.750 | 1.000 | 0.950 | 0.980 |
-| f-static-precautions | factual | ✓ | 0.887 | 1.000 | 0.950 | 0.980 |
+| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| f-double-sided | factual | ✓ | 0.200 | 1.000 | 0.600 | 1.000 |
+| f-envelopes | procedure | ✓ | 0.500 | 1.000 | 1.000 | 1.000 |
+| f-scan-phone | procedure | ✓ | 0.417 | 1.000 | 1.000 | 1.000 |
+| f-sleep-timer | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| f-factory-reset | procedure | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
+| f-photo-quality | factual | ✓ | 0.500 | 1.000 | 0.900 | 1.000 |
+| f-wont-print | procedure | ✓ | 0.750 | 1.000 | 0.900 | 1.000 |
+| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.600 | 0.950 |
+| f-add-ram | procedure | ✓ | 0.000 | 0.000 | 0.800 | 0.900 |
+| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.900 | 1.000 |
+| f-open-bottom-cover | procedure | ✓ | 1.000 | 1.000 | 0.750 | 1.000 |
+| f-replace-wifi-card | procedure | ✓ | 1.000 | 1.000 | 0.500 | 0.850 |
+| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| f-replace-display | procedure | ✓ | 0.750 | 1.000 | 0.750 | 0.950 |
+| f-static-precautions | factual | ✓ | 0.887 | 1.000 | 0.850 | 1.000 |
 | f-battery-part-number | factual | ✓ | 0.583 | 1.000 | 1.000 | 1.000 |
-| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.950 | 0.900 |
-| f-bios-version | factual | ✓ | 0.833 | 1.000 | 0.850 | 1.000 |
-| f-display-panel-only | factual | ✓ | 0.750 | 1.000 | 0.950 | 1.000 |
-| fig-scanner-callouts | figure | ✓ | 1.000 | 1.000 | 0.850 | 0.400 |
-| fig-ssd-install-diagram | figure | ✓ | 0.750 | 1.000 | 0.700 | 0.600 |
-| fig-ram-install-diagram | figure | ✓ | 0.333 | 1.000 | 0.850 | 0.900 |
-| fig-keyboard-removal-diagram | figure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| fig-wlan-diagram | figure | ✓ | 0.583 | 1.000 | 0.950 | 0.950 |
-| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 0.850 | 0.950 |
-| mt-battery-then-part-number | multiturn | ✓ | 0.444 | 1.000 | 1.000 | 0.600 |
-| mt-wifi-then-still-fails | multiturn | ✓ | 0.167 | 1.000 | 0.950 | 0.980 |
-| mt-bottom-cover-then-static | multiturn | ✓ | 1.000 | 1.000 | 0.950 | 0.980 |
+| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.750 | 0.900 |
+| f-bios-version | factual | ✓ | 0.833 | 1.000 | 1.000 | 1.000 |
+| f-display-panel-only | factual | ✓ | 0.750 | 1.000 | 1.000 | 1.000 |
+| fig-scanner-callouts | figure | ✓ | 0.250 | 1.000 | 0.600 | 0.500 |
+| fig-ssd-install-diagram | figure | ✓ | 0.833 | 1.000 | 0.500 | 0.600 |
+| fig-ram-install-diagram | figure | ✓ | 0.333 | 1.000 | 0.900 | 0.700 |
+| fig-keyboard-removal-diagram | figure | ✓ | 0.500 | 1.000 | 1.000 | 1.000 |
+| fig-wlan-diagram | figure | ✓ | 0.583 | 1.000 | 1.000 | 1.000 |
+| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| mt-battery-then-part-number | multiturn | ✓ | 0.700 | 1.000 | 0.900 | 0.600 |
+| mt-wifi-then-still-fails | multiturn | ✓ | 0.167 | 1.000 | 0.950 | 1.000 |
+| mt-bottom-cover-then-static | multiturn | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
 | neg-tire-pressure | negative | ✓ | — | — | — | — |
 | neg-router-password | negative | ✓ | — | — | — | — |
 | neg-thunderbolt | negative | ✓ | — | — | — | — |
-| neg-return-policy | negative | ✗ | — | — | — | — |
+| neg-return-policy | negative | ✓ | — | — | — | — |
+
+</details>
+
+### ollama / qwen3.5:4b (37 cases)
+
+| Metric | Score |
+|---|---|
+| refusal accuracy | 0.946 |
+| context precision | 0.722 |
+| context recall | 0.970 |
+| faithfulness | 0.726 |
+| answer relevancy | 0.890 |
+
+| Category | n | refusal acc. | ctx precision | ctx recall | faithfulness | relevancy |
+|---|---|---|---|---|---|---|
+| factual | 10 | 0.900 | 0.742 | 1.000 | 0.783 | 0.906 |
+| figure | 5 | 1.000 | 0.500 | 1.000 | 0.630 | 0.770 |
+| multiturn | 4 | 1.000 | 0.812 | 1.000 | 0.800 | 0.887 |
+| negative | 4 | 1.000 | — | — | — | — |
+| procedure | 14 | 0.929 | 0.762 | 0.929 | 0.700 | 0.927 |
+
+<details><summary>Per-question breakdown</summary>
+
+| id | category | refusal ok | ctx precision | ctx recall | faithfulness | relevancy |
+|---|---|---|---|---|---|---|
+| f-wifi-connect | procedure | ✓ | 0.667 | 1.000 | 0.650 | 0.950 |
+| f-paper-jam | procedure | ✓ | 0.833 | 1.000 | 0.600 | 0.900 |
+| f-ink-level | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| f-swap-cartridges | procedure | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
+| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 0.900 | 0.850 |
+| f-double-sided | factual | ✓ | 0.200 | 1.000 | 0.700 | 0.900 |
+| f-envelopes | procedure | ✓ | 0.500 | 1.000 | 0.700 | 0.950 |
+| f-scan-phone | procedure | ✓ | 0.417 | 1.000 | 0.850 | 1.000 |
+| f-sleep-timer | factual | ✓ | 1.000 | 1.000 | 0.800 | 1.000 |
+| f-factory-reset | procedure | ✓ | 1.000 | 1.000 | 0.600 | 0.850 |
+| f-photo-quality | factual | ✓ | 0.500 | 1.000 | 0.900 | 1.000 |
+| f-wont-print | procedure | ✓ | 0.750 | 1.000 | 0.600 | 0.900 |
+| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.750 | 1.000 |
+| f-add-ram | procedure | ✗ | 0.000 | 0.000 | — | — |
+| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.850 | 0.950 |
+| f-open-bottom-cover | procedure | ✓ | 1.000 | 1.000 | 0.600 | 0.900 |
+| f-replace-wifi-card | procedure | ✓ | 1.000 | 1.000 | 0.500 | 0.750 |
+| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
+| f-replace-display | procedure | ✓ | 0.750 | 1.000 | 0.750 | 0.950 |
+| f-static-precautions | factual | ✓ | 0.887 | 1.000 | 0.750 | 0.900 |
+| f-battery-part-number | factual | ✗ | 0.583 | 1.000 | — | — |
+| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.400 | 0.500 |
+| f-bios-version | factual | ✓ | 0.833 | 1.000 | 0.850 | 1.000 |
+| f-display-panel-only | factual | ✓ | 0.750 | 1.000 | 0.750 | 1.000 |
+| fig-scanner-callouts | figure | ✓ | 0.250 | 1.000 | 0.550 | 0.700 |
+| fig-ssd-install-diagram | figure | ✓ | 0.833 | 1.000 | 0.700 | 0.750 |
+| fig-ram-install-diagram | figure | ✓ | 0.333 | 1.000 | 0.900 | 0.900 |
+| fig-keyboard-removal-diagram | figure | ✓ | 0.500 | 1.000 | 0.500 | 0.900 |
+| fig-wlan-diagram | figure | ✓ | 0.583 | 1.000 | 0.500 | 0.600 |
+| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| mt-battery-then-part-number | multiturn | ✓ | 1.000 | 1.000 | 0.500 | 0.600 |
+| mt-wifi-then-still-fails | multiturn | ✓ | 0.250 | 1.000 | 0.750 | 0.950 |
+| mt-bottom-cover-then-static | multiturn | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| neg-tire-pressure | negative | ✓ | — | — | — | — |
+| neg-router-password | negative | ✓ | — | — | — | — |
+| neg-thunderbolt | negative | ✓ | — | — | — | — |
+| neg-return-policy | negative | ✓ | — | — | — | — |
 
 </details>

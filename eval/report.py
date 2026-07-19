@@ -19,8 +19,10 @@ INTRO = (
     "LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per "
     "the response-quality benchmark described in SPEC.md. Run with "
     "`uv run --project backend python -m eval.run` against a fully ingested "
-    "database; temperature is pinned to 0 on every provider call for "
-    "reproducibility."
+    "database. The judge is pinned to `claude-sonnet-5` regardless of the "
+    "generation provider, so every provider's answers share one grader; "
+    "temperature is pinned to 0 on generation and rewrite calls (the judge "
+    "takes no temperature parameter — removed on Claude 5-family models)."
 )
 
 
