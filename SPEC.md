@@ -197,7 +197,7 @@ Rationale: captures most of the value of multimodal RAG (figure-dependent questi
 **Hybrid retrieval with Reciprocal Rank Fusion (RRF):**
 
 1. **Dense:** embed the user query (after rewriting, see §9.2) and take top-20 chunks by cosine similarity.
-2. **Sparse:** Postgres full-text search (`websearch_to_tsquery`) top-20, ranked by `ts_rank`.
+2. **Sparse:** Postgres full-text search top-20, ranked by `ts_rank`. The query is built as an **OR of the query's words** (each word quoted so hyphenated tokens like part numbers stay intact as phrases, fed through `websearch_to_tsquery`) rather than websearch's default AND-of-all-words. Rationale: conjunctive semantics defeat the sparse leg's whole purpose — a natural-language token lookup ("What is HP spare part 747080-001?") fails against the terse catalog chunk holding the token whenever the chunk lacks any one of the surrounding ordinary words ("HP"); measured on the exact-token golden slice, see `eval/REPORT.md`. With OR semantics, `ts_rank` still ranks chunks matching more of the query's words higher, and RRF fusion caps the sparse leg's influence.
 3. **Fuse** the two lists with RRF (`k = 60`), deduplicate, keep **top-6** chunks as context.
 4. Refusal guard: if fusion produces no candidates, the assistant answers "I couldn't find this in the HP documents" instead of hallucinating. (A configurable score threshold was investigated in M5 and rejected — no signal separates negative from positive cases without costing recall; see `eval/REPORT.md`.)
 
