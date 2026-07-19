@@ -77,13 +77,11 @@ harness caught, which decisions the evals settled) lives in SPEC.md,
   restricted to the frontend origin.
 - **Evidence:** `eval/REPORT.md` — retrieval eval (recall@k/MRR, the gate
   for model/chunking changes) and the response-quality benchmark on the
-  37-question golden set (`eval/golden.jsonl`), judged by pinned
-  `claude-sonnet-5` for cross-provider comparability: claude-haiku-4-5
-  refusal accuracy 1.000 / faithfulness 0.856 / relevancy 0.935; local
-  qwen3.5:4b refusal accuracy 0.946 / faithfulness 0.726 / relevancy 0.890
-  (context recall 0.970 for both — same retriever). `loadtest/REPORT.md` —
-  scenario (a) ~891 req/min within threshold at 60 users, scenario (b)
-  LLM-dominated (p95 ~8.5s). The rejected cross-encoder re-ranker spike is
+  37-question golden set, judged by pinned `claude-sonnet-5`:
+  claude-haiku-4-5 refusal 1.000 / faithfulness 0.856; local qwen3.5:4b
+  0.946 / 0.726 (context recall 0.970 for both — same retriever).
+  `loadtest/REPORT.md` — ~891 req/min within threshold (scenario a),
+  LLM-dominated p95 ~8.5s (scenario b). The rejected re-ranker spike is
   restorable from commit `f1b92a9`.
 - **Suites:** 155 fast backend tests @ ~93.5% coverage; 37 Vitest/RTL
   frontend tests.

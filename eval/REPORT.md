@@ -31,8 +31,9 @@ Decisions in force, each detailed in its own section below:
   set under-represents the query shape FTS exists for.
 - **Cross-encoder re-ranker: not adopted**; spike code removed from the
   tree (restorable from commit `f1b92a9`).
-- **`REFUSAL_THRESHOLD=0.0`, kept** — neither candidate score signal
-  separates negative from positive cases in this embedding space.
+- **`REFUSAL_THRESHOLD`: removed** — neither candidate score signal
+  separates negative from positive cases in this embedding space; the
+  retriever refuses only on empty retrieval.
 - **Known limitation:** "How do I add more RAM to this machine?"
   (`f-add-ram`) misses under every configuration tried — dense, hybrid,
   and the re-ranker. "RAM" matches "memory module" neither semantically
@@ -223,9 +224,10 @@ ranks 4/1/3/1/2 — all within top-6, none previously counted.
 
 ## Refusal threshold tuning (Milestone 5)
 
-`REFUSAL_THRESHOLD` gates `HybridRetriever.retrieve()`: when the best fused
-candidate scores below it, the system refuses instead of answering (§8).
-Tuning it required understanding what the fused score actually measures.
+`REFUSAL_THRESHOLD` gated `HybridRetriever.retrieve()`: when the best fused
+candidate scored below it, the system refused instead of answering. Tuning it
+required understanding what the fused score actually measures. (The knob was
+later removed — this section is the evidence for why no threshold works.)
 
 **RRF fused scores don't discriminate relevant from irrelevant queries.**
 Probed the top fused score for every golden question (`candidates=20`,
@@ -300,31 +302,19 @@ commit `f1b92a9` and rerun.
 
 ## Per-provider refusal mismatches (qwen3.5:4b)
 
-The two refusal mismatches in the local-provider run below are worth reading,
-because they fall on opposite sides of the same line and the aggregate score
-doesn't distinguish them.
+The two mismatches in the local-provider run fall on opposite sides of a line
+the aggregate score hides:
 
-- **`f-add-ram` — the honest refusal.** Retrieval came back effectively empty
-  for this case (context precision and recall both 0.000; it's the exact-token
-  "RAM" vs. "memory module" miss documented as a known limitation up top). Given
-  no on-target context, qwen refused — which is the behavior the empty-retrieval
-  guard and the strict prompt are *for*. claude-haiku-4-5 answered it anyway from
-  the off-target chunks and scored a "correct" non-refusal. So the refusal metric,
-  which scores against the golden set's `expect_refusal=False`, penalizes the more
-  faithful provider here: a refusal on an answerable question counts as wrong even
-  when retrieval genuinely failed. Read this mismatch as a retrieval gap, not a
-  generation defect.
-- **`f-battery-part-number` — a real capability miss.** Here retrieval succeeded
-  (recall 1.000, precision 0.583) and the part number was in-context, yet qwen
-  still hedged instead of extracting it. haiku handled the same context cleanly
-  (faithfulness 1.000). This is the genuine cloud-vs-4B gap the benchmark exists
-  to quantify — a small local model dropping an exact-token extraction it had the
-  evidence to answer.
+- **`f-add-ram`** — retrieval came back empty (precision/recall 0.000; the
+  known "RAM" vs. "memory module" miss). qwen refused; haiku answered from
+  off-target chunks and scored a "correct" non-refusal. A retrieval gap, not
+  a generation defect — the metric penalizes the more faithful behavior.
+- **`f-battery-part-number`** — retrieval succeeded (recall 1.000) and qwen
+  still hedged; haiku extracted the part number cleanly. The genuine
+  cloud-vs-4B gap.
 
-The takeaway: refusal accuracy alone conflates "refused because retrieval failed"
-with "refused despite good retrieval." Cross-referencing the per-question context
-precision/recall columns separates the two, and only the second is a mark against
-the generator.
+Refusal accuracy conflates the two; the per-question context columns separate
+them.
 
 ## Response Quality Benchmark
 
