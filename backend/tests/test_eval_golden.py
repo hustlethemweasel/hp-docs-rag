@@ -70,10 +70,12 @@ def test_loads_a_negative_case_expecting_refusal(tmp_path):
     assert case.expect_refusal is True
 
 
-def test_retrieval_cases_keeps_only_answerable_single_turn_cases(tmp_path):
+def test_retrieval_cases_keeps_only_answerable_single_turn_english_cases(tmp_path):
     """The retrieval-only eval can't measure negative cases (no expected
-    pages to rank) or multi-turn cases (the question text is incomplete
-    without the query rewriting this eval doesn't run) — but figure cases
+    pages to rank), multi-turn cases (the question text is incomplete
+    without the query rewriting this eval doesn't run), or non-English
+    cases (production rewrites every query to English before retrieval, so
+    raw non-English retrieval isn't a production path) — but figure cases
     are ordinary single-turn questions and must be included.
     """
     path = write(
@@ -87,11 +89,28 @@ def test_retrieval_cases_keeps_only_answerable_single_turn_cases(tmp_path):
         '"question": "What about afterwards?", "document": "d.pdf", "pages": [65]}',
         '{"id": "n1", "category": "negative", '
         '"question": "What tire pressure?", "expect_refusal": true}',
+        '{"id": "pt1", "category": "ptbr", "language": "pt-BR", '
+        '"question": "Como troco os cartuchos?", "document": "d.pdf", "pages": [59]}',
     )
 
     cases = retrieval_cases(load_golden(path))
 
     assert [c.id for c in cases] == ["f1", "fig1"]
+
+
+def test_language_defaults_to_english(tmp_path):
+    path = write(
+        tmp_path,
+        '{"id": "f1", "category": "factual", "question": "How much ink is left?", '
+        '"document": "d.pdf", "pages": [62]}',
+        '{"id": "pt1", "category": "ptbr", "language": "pt-BR", '
+        '"question": "Como troco os cartuchos?", "document": "d.pdf", "pages": [59]}',
+    )
+
+    english, ptbr = load_golden(path)
+
+    assert english.language == "en"
+    assert ptbr.language == "pt-BR"
 
 
 def test_loads_multiple_lines_in_order(tmp_path):

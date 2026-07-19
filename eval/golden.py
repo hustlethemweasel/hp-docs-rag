@@ -21,18 +21,25 @@ class GoldenCase:
     document: str | None
     pages: set[int]
     expect_refusal: bool
+    language: str = "en"
 
 
 def retrieval_cases(cases: list[GoldenCase]) -> list[GoldenCase]:
     """The subset the retrieval-only eval can measure: answerable cases
     (negatives have no expected pages to rank against) that are single-turn
     (multi-turn questions are incomplete without the query rewriting that
-    eval doesn't run).
+    eval doesn't run) and English (production rewrites every query to
+    English before retrieval, so raw non-English retrieval isn't a
+    production path — non-English cases are measured end-to-end by the
+    quality benchmark instead).
     """
     return [
         case
         for case in cases
-        if not case.expect_refusal and not case.history and case.pages
+        if not case.expect_refusal
+        and not case.history
+        and case.pages
+        and case.language == "en"
     ]
 
 
@@ -52,6 +59,7 @@ def load_golden(path: Path = GOLDEN_PATH) -> list[GoldenCase]:
                 document=record.get("document"),
                 pages=set(record.get("pages", [])),
                 expect_refusal=record.get("expect_refusal", False),
+                language=record.get("language", "en"),
             )
         )
     return cases

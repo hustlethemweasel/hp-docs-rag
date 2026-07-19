@@ -37,5 +37,18 @@ def test_detects_other_refusal_phrasing_from_the_model():
     )
 
 
+def test_detects_portuguese_refusal_phrasing():
+    # The system prompt answers in the user's language, so pt-BR negative
+    # cases refuse in Portuguese (SPEC's multilingual section).
+    assert is_refusal("Essa informação não está nos documentos.") is True
+    assert is_refusal("Os manuais não contêm informações sobre isso.") is True
+    assert is_refusal("Não encontrei essa informação nos manuais da HP.") is True
+    assert is_refusal("O contexto fornecido não contém a resposta.") is True
+
+
 def test_does_not_flag_a_normal_grounded_answer():
     assert is_refusal("Open the front cover and pull the cartridge out.") is False
+
+
+def test_does_not_flag_a_normal_portuguese_answer():
+    assert is_refusal("Abra a tampa frontal e retire o cartucho.") is False
