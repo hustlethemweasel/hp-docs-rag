@@ -20,6 +20,8 @@ REFUSAL_PHRASES = [
     # cases asked in Portuguese refuse in Portuguese.
     "não está nos documentos",
     "não estão nos documentos",
+    "não está contida",
+    "não estão contidas",
     "não contém",
     "não contêm",
     "não encontrei",

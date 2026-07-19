@@ -44,6 +44,15 @@ def test_detects_portuguese_refusal_phrasing():
     assert is_refusal("Os manuais não contêm informações sobre isso.") is True
     assert is_refusal("Não encontrei essa informação nos manuais da HP.") is True
     assert is_refusal("O contexto fornecido não contém a resposta.") is True
+    # Observed verbatim from claude-haiku-4-5 on both pt-BR negative cases
+    # in the first benchmark run — "contida" wasn't in the phrase list.
+    assert (
+        is_refusal(
+            "Desculpe, mas essa informação não está contida nos documentos "
+            "que tenho disponível."
+        )
+        is True
+    )
 
 
 def test_does_not_flag_a_normal_grounded_answer():
