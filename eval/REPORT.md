@@ -21,41 +21,40 @@ growth):
 | Configuration | recall@6 | recall@20 | MRR@20 |
 |---|---|---|---|
 | dense only (harrier) | 0.941 | 0.941 | 0.782 |
-| hybrid — production (dense + FTS, RRF k=60) | 0.941 | 0.941 | 0.768 |
+| hybrid — production (dense + FTS OR-of-words, RRF k=60) | **0.971** | **0.971** | **0.838** |
 
-The 5 exact-token questions added on 2026-07-19 (see the hybrid-vs-dense
-section) lower recall by adding one shared miss (`x-part-lookup-dvd`, a
-part-number lookup that misses under both retrievers), not by regressing
-anything already measured.
+These are the post-FTS-fix numbers (2026-07-19, see the hybrid-vs-dense
+section): with the sparse leg's conjunctive-query defect fixed, hybrid
+beats dense on every aggregate for the first time, recovering a
+part-number lookup dense cannot reach (`x-part-lookup-dvd`, rank 6) and
+improving ranks well beyond the exact-token slice.
 
 Decisions in force, each detailed in its own section below:
 
 - **Embedding model: `microsoft/harrier-oss-v1-270m`, kept.** e5-small-v2
   rejected twice — the second time under fair conditions after a
   contamination in the first trial was found and eliminated.
-- **Hybrid retrieval (dense + Postgres FTS, RRF): production, now under
-  review.** Measured ≈ dense on the paraphrase-heavy set (MRR within ±0.02
-  across the 24-/29-/34-question bases). The 2026-07-19 exact-token slice —
-  built specifically to give FTS its home turf — came back *identical* to
-  dense (both 0.800 recall@6 / 0.700 MRR@20), and traced the null result to
-  a concrete cause: `websearch_to_tsquery` ANDs every query word, so a
-  natural-language token lookup fails whenever the terse chunk holding the
-  token lacks one of the surrounding words. The sparse leg as configured is
-  not earning its place; see the hybrid-vs-dense section for the fork
-  (fix the FTS query construction, or remove hybrid).
+- **Hybrid retrieval (dense + Postgres FTS, RRF): kept, now on direct
+  evidence.** The 2026-07-19 exact-token slice initially measured hybrid
+  ≈ dense even on FTS's home turf and traced the null result to a
+  conjunctive-query defect: `websearch_to_tsquery` ANDs every query word,
+  so a natural-language token lookup failed whenever the terse chunk
+  holding the token lacked one of the surrounding words. Fixing the sparse
+  query to OR-of-words (phrase-preserving, see SPEC's search strategy)
+  flipped the comparison: hybrid 0.971 recall@6 / 0.838 MRR@20 vs dense
+  0.941 / 0.782 — the first configuration to beat dense on every
+  aggregate. Details in the hybrid-vs-dense section.
 - **Cross-encoder re-ranker: not adopted**; spike code removed from the
   tree (restorable from commit `f1b92a9`).
 - **`REFUSAL_THRESHOLD`: removed** — neither candidate score signal
   separates negative from positive cases in this embedding space; the
   retriever refuses only on empty retrieval.
-- **Known limitations:** two shared misses under every configuration
-  tried (dense, hybrid, re-ranker). "How do I add more RAM to this
-  machine?" (`f-add-ram`) — "RAM" matches "memory module" neither
-  semantically nor lexically. "What is HP spare part 747080-001?"
-  (`x-part-lookup-dvd`) — the token *is* indexed and matches FTS in
-  isolation, but the conjunctive `websearch_to_tsquery` and dense's weak
-  grip on a bare catalog row both miss it (see the hybrid-vs-dense
-  section).
+- **Known limitation:** "How do I add more RAM to this machine?"
+  (`f-add-ram`) misses under every configuration tried — dense, hybrid
+  (pre- and post-FTS-fix), and the re-ranker. "RAM" matches "memory
+  module" neither semantically nor lexically. (The other former shared
+  miss, `x-part-lookup-dvd`, is recovered by the fixed sparse leg —
+  hybrid rank 6; dense still cannot reach it.)
 
 ## Embedding model selection: harrier vs. e5-small-v2
 
@@ -238,24 +237,44 @@ aggregate:
   DDR5 module) all rank 1 on dense alone — harrier embeds a distinctive
   alphanumeric token well enough that there is nothing for FTS to add.
 
-**The fork this leaves.** The earlier "keep hybrid, the set just can't test
-it" no longer holds — the set now *can* test it, and the sparse leg as
-configured adds nothing while one of its would-be wins is defeated by a
-query-construction bug. Two honest options:
+**The fork this left** — fix the FTS query and re-measure, or remove
+hybrid as dead weight — was resolved the same day by taking the fix first
+(the reasoning: don't delete a feature that was never running as
+intended).
 
-1. **Fix the FTS query, then re-measure.** Removing the AND semantics is
-   the change that would let `x-part-lookup-dvd` demonstrate the hybrid
-   rationale for real. If a corrected sparse leg moves the slice, hybrid
-   earns its place on evidence for the first time.
-2. **Remove hybrid.** If the fix doesn't move the slice, the sparse leg is
-   dead weight, and dropping it deletes the `tsv` column, the FTS query,
-   and RRF fusion — a real simplification. (It would also moot the
-   cross-lingual "FTS lane goes dark" concern for non-English queries,
-   since dense is the language-agnostic leg.)
+### After the FTS fix (2026-07-19): hybrid earns its place
 
-Not deciding here: option 1 is a code change gated on a fresh measurement,
-option 2 is a removal. This section records that the "wash" is now a
-measured null result with a diagnosed cause, not an untested assumption.
+`sparse_search` now rewrites the query to OR-of-words before
+`websearch_to_tsquery` (each word quoted, so hyphenated tokens stay intact
+as phrase queries; stop words still drop out server-side; `ts_rank` still
+rewards matching more of the query's words; RRF caps the sparse leg's
+influence). Re-measured on the same 34-question basis:
+
+| 34 questions | recall@6 | recall@20 | MRR@20 |
+|---|---|---|---|
+| dense only | 0.941 | 0.941 | 0.782 |
+| hybrid, conjunctive FTS (pre-fix) | 0.941 | 0.941 | 0.768 |
+| hybrid, OR-of-words FTS (fixed) | **0.971** | **0.971** | **0.838** |
+
+- **The diagnosed case is recovered.** `x-part-lookup-dvd` ("What is HP
+  spare part 747080-001?") goes miss → rank 6 under hybrid — the terse
+  catalog chunk dense can't reach now enters through the sparse leg. On
+  the exact-token slice, hybrid is now 1.000 recall@6 / 0.833 MRR@20 vs
+  dense's 0.800 / 0.700.
+- **The lift is broad, not confined to the slice.** Battery part-number
+  3 → 1, scanner-callouts figure 4 → 1, RAM-diagram figure 3 → 1, WLAN
+  diagram 2 → 1, E3 error code 2 → 1, scan-from-phone 3 → 2 — and the
+  double-sided-printing question, which *dropped* 3 → 5 under conjunctive
+  hybrid, now improves 3 → 2. A few rank-1s slip to rank 2 (factory
+  reset, bottom cover, keyboard diagram), which the aggregate absorbs:
+  hybrid beats dense on every metric for the first time.
+- **`f-add-ram` remains the one miss** under both — a vocabulary gap
+  ("RAM" vs "memory module") that no lexical query construction fixes.
+
+**Decision: hybrid kept, on direct evidence.** The sparse leg's value was
+real but locked behind conjunctive query semantics the whole time. The
+sequence stands as the durable record: measured wash → diagnosed cause →
+fixed query → measured win.
 
 ## Golden dataset (`golden.jsonl` — single source for both evals)
 
