@@ -209,12 +209,22 @@ Rationale: manuals are full of exact tokens (part numbers like "M08117-001", err
 
 ### 9.1 Prompting
 
-System prompt instructs the model to answer **only** from the provided context, cite sources as `[doc, p. X]`, and say so when the answer isn't in the documents. Context block = the top-6 chunks with their metadata.
+System prompt instructs the model to answer **only** from the provided context, cite sources as `[doc, p. X]`, say so when the answer isn't in the documents, and answer **in the language of the user's question** (see §9.4). Context block = the top-6 chunks with their metadata.
 
 ### 9.2 Conversation history (R9)
 
 - The last **10 messages** (5 turns) of the conversation are included in the prompt verbatim.
-- **Query rewriting:** before retrieval, a lightweight LLM call condenses the history + new question into a standalone search query (so "how do I clean it?" retrieves printhead-cleaning chunks after a printer discussion). Skipped on the first turn.
+- **Query rewriting:** before retrieval, a lightweight LLM call condenses the history + new question into a standalone search query **in English** — the corpus language — resolving pronouns and implicit references (so "how do I clean it?" retrieves printhead-cleaning chunks after a printer discussion, and a Portuguese follow-up still lights up both retrieval legs, see §9.4). Skipped on the first turn.
+
+### 9.4 Multilingual queries
+
+Users may ask in languages other than English (Brazilian Portuguese is the expected second language); the corpus stays English-only. Design:
+
+- **Dense leg is the cross-lingual path.** The embedding model (harrier) is multilingual, so a non-English query embeds near the English chunks it's about. This carries first-turn non-English queries, where rewriting is skipped and the sparse leg cannot match English lexemes — an accepted trade against adding an LLM call to every first turn.
+- **Rewriting normalizes to English** (§9.2), so from the second turn on, the sparse FTS leg works for non-English conversations too. Exact tokens (part numbers, error codes) pass through rewriting verbatim.
+- **Answers mirror the user's language** (§9.1), including in-prose refusals for out-of-domain questions. Citations keep the English document titles — they name real documents.
+- **Out of scope:** localized frontend chrome, non-English corpora (would need per-language FTS configs and re-evaluated chunking), and translating the static empty-retrieval refusal message in the chat service — with a populated index that guard is effectively unreachable (dense search always returns nearest chunks; it exists for the empty-index boot state).
+- **Evidence status:** unmeasured. A pt-BR golden slice (translated retrieval queries; pt-BR quality-benchmark cases including a refusal phrased in Portuguese) is the gate before claiming multilingual support in README/report.
 
 ### 9.3 Provider abstraction (R4)
 
