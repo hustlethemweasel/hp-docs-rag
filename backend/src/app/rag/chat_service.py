@@ -73,9 +73,7 @@ class ChatService:
 
         started = time.monotonic()
         try:
-            search_query = await rewrite_query(
-                self.provider, windowed_history, content
-            )
+            search_query = await rewrite_query(self.provider, windowed_history, content)
         except PROVIDER_ERRORS as exc:
             async for frame in self._fail(
                 conversation_id, user_message_id, "", exc, started
