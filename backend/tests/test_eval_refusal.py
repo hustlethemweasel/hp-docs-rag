@@ -35,6 +35,13 @@ def test_detects_other_refusal_phrasing_from_the_model():
         )
         is True
     )
+    # Observed verbatim from claude-haiku-4-5 on neg-thunderbolt: a grounded
+    # negative ("the docs don't list it") — same family as "not mentioned in
+    # the available context" above.
+    assert (
+        is_refusal("Based on the guide, there is no mention of Thunderbolt 5 support.")
+        is True
+    )
 
 
 def test_detects_portuguese_refusal_phrasing():

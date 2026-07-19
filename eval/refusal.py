@@ -16,6 +16,7 @@ REFUSAL_PHRASES = [
     "no information about this",
     "unable to help with that",
     "not mentioned in the available context",
+    "no mention of",
     # pt-BR: the system prompt mirrors the user's language, so negative
     # cases asked in Portuguese refuse in Portuguese.
     "não está nos documentos",
