@@ -88,12 +88,14 @@ async def run_case(
         ctx_recall = context_recall(retrieved, document=case.document, pages=case.pages)
         if retrieved and not refused:
             context_text = "\n\n".join(c.content for c in retrieved)
+            # No temperature: removed on Claude 5-family models — sonnet-5
+            # rejects the parameter with a 400.
             score = await judge(
                 judge_provider,
                 question=case.question,
                 answer=answer,
                 context=context_text,
-                temperature=TEMPERATURE,
+                temperature=None,
             )
             faithfulness = score.faithfulness
             relevancy = score.relevancy
