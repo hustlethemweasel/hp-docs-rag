@@ -324,7 +324,7 @@ async def test_ollama_provider_raises_on_a_failed_request():
 
 
 def settings_for(
-    provider: Literal["anthropic", "openai", "ollama", "scripted"], **overrides
+    provider: Literal["anthropic", "ollama", "scripted"], **overrides
 ) -> Settings:
     return Settings(
         llm_provider=provider, database_url="sqlite+aiosqlite://", **overrides
@@ -353,13 +353,6 @@ def test_factory_fails_fast_on_anthropic_without_an_api_key():
     settings = settings_for("anthropic", anthropic_api_key=None)
 
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-        build_provider(settings)
-
-
-def test_factory_fails_fast_on_an_unimplemented_provider():
-    settings = settings_for("openai", openai_api_key="test-key")
-
-    with pytest.raises(NotImplementedError, match="openai"):
         build_provider(settings)
 
 

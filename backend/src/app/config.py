@@ -14,10 +14,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    llm_provider: Literal["anthropic", "openai", "ollama", "scripted"] = "ollama"
+    llm_provider: Literal["anthropic", "ollama", "scripted"] = "ollama"
     llm_model: str = "qwen3.5:4b"
     anthropic_api_key: str | None = None
-    openai_api_key: str | None = None
     ollama_url: str = "http://ollama:11434"
 
     embedding_model: str = "microsoft/harrier-oss-v1-270m"

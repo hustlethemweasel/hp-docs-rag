@@ -137,7 +137,7 @@ def test_anthropic_captioner_raises_on_a_failed_request():
 
 
 def settings_for(
-    provider: Literal["anthropic", "openai", "ollama"], **overrides
+    provider: Literal["anthropic", "ollama", "scripted"], **overrides
 ) -> Settings:
     return Settings(
         llm_provider=provider, database_url="sqlite+aiosqlite://", **overrides
@@ -169,8 +169,8 @@ def test_factory_fails_fast_on_anthropic_without_an_api_key():
         build_captioner(settings)
 
 
-def test_factory_fails_fast_on_an_unimplemented_provider():
-    settings = settings_for("openai", openai_api_key="test-key")
+def test_factory_fails_fast_on_a_provider_without_a_captioner():
+    settings = settings_for("scripted")
 
-    with pytest.raises(NotImplementedError, match="openai"):
+    with pytest.raises(NotImplementedError, match="scripted"):
         build_captioner(settings)

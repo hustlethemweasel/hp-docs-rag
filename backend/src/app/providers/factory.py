@@ -33,10 +33,8 @@ def build_provider(settings: Settings) -> ChatProvider:
             client=httpx.AsyncClient(base_url=settings.ollama_url, timeout=120),
             model=settings.llm_model,
         )
-    if settings.llm_provider == "scripted":
-        return ScriptedProvider(
-            tokens=_SCRIPTED_ANSWER.split(" "), latency=_SCRIPTED_LATENCY
-        )
-    raise NotImplementedError(
-        f"no chat provider for LLM_PROVIDER={settings.llm_provider}"
+    # Falling through means llm_provider == "scripted": the Literal on
+    # Settings makes the branches exhaustive, so no trailing raise is needed.
+    return ScriptedProvider(
+        tokens=_SCRIPTED_ANSWER.split(" "), latency=_SCRIPTED_LATENCY
     )
