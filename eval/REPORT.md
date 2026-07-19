@@ -298,6 +298,34 @@ re-ranker's precision lift would actually be worth its cost), restore
 `eval/rerank_experiment.py` and `backend/tests/test_eval_rerank.py` from
 commit `f1b92a9` and rerun.
 
+## Per-provider refusal mismatches (qwen3.5:4b)
+
+The two refusal mismatches in the local-provider run below are worth reading,
+because they fall on opposite sides of the same line and the aggregate score
+doesn't distinguish them.
+
+- **`f-add-ram` — the honest refusal.** Retrieval came back effectively empty
+  for this case (context precision and recall both 0.000; it's the exact-token
+  "RAM" vs. "memory module" miss documented as a known limitation up top). Given
+  no on-target context, qwen refused — which is the behavior the empty-retrieval
+  guard and the strict prompt are *for*. claude-haiku-4-5 answered it anyway from
+  the off-target chunks and scored a "correct" non-refusal. So the refusal metric,
+  which scores against the golden set's `expect_refusal=False`, penalizes the more
+  faithful provider here: a refusal on an answerable question counts as wrong even
+  when retrieval genuinely failed. Read this mismatch as a retrieval gap, not a
+  generation defect.
+- **`f-battery-part-number` — a real capability miss.** Here retrieval succeeded
+  (recall 1.000, precision 0.583) and the part number was in-context, yet qwen
+  still hedged instead of extracting it. haiku handled the same context cleanly
+  (faithfulness 1.000). This is the genuine cloud-vs-4B gap the benchmark exists
+  to quantify — a small local model dropping an exact-token extraction it had the
+  evidence to answer.
+
+The takeaway: refusal accuracy alone conflates "refused because retrieval failed"
+with "refused despite good retrieval." Cross-referencing the per-question context
+precision/recall columns separates the two, and only the second is a mark against
+the generator.
+
 ## Response Quality Benchmark
 
 LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the response-quality benchmark described in SPEC.md. Run with `uv run --project backend python -m eval.run` against a fully ingested database. The judge is pinned to `claude-sonnet-5` regardless of the generation provider, so every provider's answers share one grader; temperature is pinned to 0 on generation and rewrite calls (the judge takes no temperature parameter — removed on Claude 5-family models).
