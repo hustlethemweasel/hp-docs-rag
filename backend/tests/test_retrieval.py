@@ -1,4 +1,4 @@
-"""Behavior: hybrid retrieval — embed, dense+sparse search, RRF fuse, refusal guard.
+"""Behavior: hybrid retrieval — embed, dense+sparse search, RRF fuse, refuse on empty.
 
 Real collaborator: the actual RRF fusion math (app.rag.fusion.fuse), so the
 ranking behavior under test is genuine. The embedder and chunk repository are
@@ -30,9 +30,7 @@ def chunk(
     )
 
 
-def make_retriever(
-    *, candidates: int = 20, top_k: int = 6, refusal_threshold: float = 0.0
-):
+def make_retriever(*, candidates: int = 20, top_k: int = 6):
     embedder = create_autospec(Embedder, instance=True)
     embedder.embed_query.return_value = [0.1] * 640
     chunks = create_autospec(ChunkRepository, instance=True)
@@ -41,7 +39,6 @@ def make_retriever(
         chunks=chunks,
         candidates=candidates,
         top_k=top_k,
-        refusal_threshold=refusal_threshold,
     )
     return retriever, embedder, chunks
 
@@ -87,16 +84,6 @@ async def test_top_k_caps_the_number_of_returned_chunks():
 
     assert len(results) == 2
     assert [c.chunk_id for c in results] == [1, 2]
-
-
-async def test_returns_empty_when_best_fused_score_is_below_the_refusal_threshold():
-    retriever, _, chunks = make_retriever(refusal_threshold=0.9)
-    chunks.dense_search.return_value = [chunk(1, score=0.4)]
-    chunks.sparse_search.return_value = []
-
-    results = await retriever.retrieve("query")
-
-    assert results == []
 
 
 async def test_no_results_from_either_retriever_returns_empty():

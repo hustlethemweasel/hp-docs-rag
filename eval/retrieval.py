@@ -55,7 +55,6 @@ async def run() -> None:
                 chunks=chunks,
                 candidates=CANDIDATES,
                 top_k=CANDIDATES,
-                refusal_threshold=0.0,
             )
             for item in golden:
                 # retrieval_cases guarantees pages; a paged case without a

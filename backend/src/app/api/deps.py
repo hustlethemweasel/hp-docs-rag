@@ -62,7 +62,6 @@ async def get_chat_service(
         chunks=ChunkRepository(connection),
         candidates=settings.retrieval_candidates,
         top_k=settings.top_k,
-        refusal_threshold=settings.refusal_threshold,
     )
     return ChatService(
         provider=request.app.state.provider,

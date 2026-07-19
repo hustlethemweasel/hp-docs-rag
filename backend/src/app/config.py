@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     chunk_overlap: int = 80
     retrieval_candidates: int = 20
     top_k: int = 6
-    refusal_threshold: float = 0.0  # kept at 0 in Milestone 5 — see eval/REPORT.md
 
     database_url: str
     # Raised from SQLAlchemy's async engine defaults (5/10) — see

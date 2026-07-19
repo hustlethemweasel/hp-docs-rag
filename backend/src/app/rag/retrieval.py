@@ -8,13 +8,12 @@ from app.repositories.chunks import ChunkRepository, RetrievedChunk
 
 @dataclass
 class HybridRetriever:
-    """Dense + sparse retrieval, RRF-fused, capped at top_k with a refusal guard."""
+    """Dense + sparse retrieval, RRF-fused, capped at top_k; empty means refuse."""
 
     embedder: Embedder
     chunks: ChunkRepository
     candidates: int
     top_k: int
-    refusal_threshold: float
 
     async def retrieve(self, query: str) -> list[RetrievedChunk]:
         # CPU-bound and synchronous (sentence-transformers on CPU); run off
@@ -27,7 +26,7 @@ class HybridRetriever:
         rankings = [[c.chunk_id for c in dense], [c.chunk_id for c in sparse]]
         fused = fuse(rankings)
 
-        if not fused or fused[0][1] < self.refusal_threshold:
+        if not fused:
             return []
 
         return [

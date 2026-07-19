@@ -7,7 +7,7 @@ Run from the repo root against a fully ingested database:
     uv run --project backend python -m eval.run
 
 Environment: reads the same Settings as the API (DATABASE_URL, LLM_PROVIDER,
-LLM_MODEL, EMBEDDING_MODEL, RETRIEVAL_CANDIDATES, TOP_K, REFUSAL_THRESHOLD).
+LLM_MODEL, EMBEDDING_MODEL, RETRIEVAL_CANDIDATES, TOP_K).
 Every provider call pins temperature=0 for reproducibility, matching §13's
 tuning-harness requirement. Re-run once per provider (e.g. once with
 LLM_PROVIDER=anthropic, once with LLM_PROVIDER=ollama) to build the
@@ -121,7 +121,6 @@ async def run() -> None:
                 chunks=ChunkRepository(connection),
                 candidates=settings.retrieval_candidates,
                 top_k=settings.top_k,
-                refusal_threshold=settings.refusal_threshold,
             )
             for golden_case in golden:
                 record = await run_case(
