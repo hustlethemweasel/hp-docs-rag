@@ -278,7 +278,7 @@ fixed query → measured win.
 
 ## Golden dataset (`golden.jsonl` — single source for both evals)
 
-42 curated Q&A pairs across both manuals: 24 factual/procedure questions
+50 curated Q&A pairs across both manuals: 24 factual/procedure questions
 (originally curated as a separate `retrieval.jsonl` that seeded this
 file), plus cases added for Milestone 5 — 5 figure-dependent questions
 grounded in real indexed `figure_caption` chunks (scanner callouts p. 8,
@@ -286,10 +286,18 @@ SSD/RAM/keyboard/WLAN diagrams in the OMEN guide), 4 multi-turn follow-ups
 that reuse an earlier question's page range but require resolving a
 pronoun/reference from the prior turn, and 4 negative (unanswerable)
 questions from unrelated domains (car tire pressure, router admin
-passwords, Thunderbolt 5 support, HP's return policy) — and 5 exact-token
-questions added 2026-07-19 (category `exact-token`: a bare error code and
-four part-number lookups, each verified present in the indexed content) to
-give Postgres FTS its home turf in the hybrid-vs-dense comparison.
+passwords, Thunderbolt 5 support, HP's return policy) — and two slices
+added 2026-07-19: 5 exact-token questions (category `exact-token`: a bare
+error code and four part-number lookups, each verified present in the
+indexed content) to give Postgres FTS its home turf in the hybrid-vs-dense
+comparison, and 8 pt-BR questions (category `ptbr`, `language: "pt-BR"`:
+six answerable mirrors of English cases including one multi-turn, plus two
+negatives expecting a refusal phrased in Portuguese) to evidence the
+multilingual support specced in SPEC's multilingual section. Non-English
+cases carry a `language` field and are excluded from the retrieval eval's
+basis (production rewrites every query to English before retrieval, so raw
+non-English retrieval isn't a production path — the quality benchmark
+measures them end-to-end through the real rewrite instead).
 
 **Dataset unification (2026-07-18).** `retrieval.jsonl` had remained in
 the tree as the retrieval eval's input — a strict content subset of this
@@ -393,148 +401,210 @@ re-ranker's precision lift would actually be worth its cost), restore
 `eval/rerank_experiment.py` and `backend/tests/test_eval_rerank.py` from
 commit `f1b92a9` and rerun.
 
-## Per-provider refusal mismatches (qwen3.5:4b)
+## Multilingual round (2026-07-19): pt-BR slice + always-rewrite
 
-The two mismatches in the local-provider run fall on opposite sides of a line
-the aggregate score hides:
+The benchmark below is the first run after three multilingual changes
+(SPEC's multilingual section): the system prompt answers in the user's
+language, the rewrite prompt translates to English, and **rewriting now
+runs on every turn including the first** (adopted after a pt-BR smoke test
+showed the corpus's own foreign-language notice pages outranking topical
+chunks on raw pt-BR queries). Findings the aggregate tables hide:
 
-- **`f-add-ram`** — retrieval came back empty (precision/recall 0.000; the
-  known "RAM" vs. "memory module" miss). qwen refused; haiku answered from
-  off-target chunks and scored a "correct" non-refusal. A retrieval gap, not
-  a generation defect — the metric penalizes the more faithful behavior.
-- **`f-battery-part-number`** — retrieval succeeded (recall 1.000) and qwen
-  still hedged; haiku extracted the part number cleanly. The genuine
-  cloud-vs-4B gap.
-
-Refusal accuracy conflates the two; the per-question context columns separate
-them.
+- **The pt-BR slice is clean on both providers: refusal accuracy 1.000,
+  context recall 1.000.** The English rewrite carries retrieval — pt-BR
+  questions retrieve exactly what their English mirrors do. qwen's
+  faithfulness on the slice (0.650 vs haiku's 0.883) matches its English
+  gap; the pipeline, not the language, is the differentiator.
+- **Two 4B-model defects were caught and fixed while building the slice**,
+  both invisible without it: qwen3.5:4b ignored the original parenthetical
+  "in English" rewrite instruction (rewrote pt-BR questions in Portuguese,
+  deterministically), and any prompt clause about copying part numbers /
+  error codes made it append literal "[Part Number]" placeholders. The
+  rewrite prompt's current wording is tuned to what the smallest supported
+  model actually obeys; real tokens survive the rewrite without being
+  asked for.
+- **Two benchmark-detector gaps surfaced, same failure mode as M5:** the
+  models refused correctly but the phrase list didn't recognize "essa
+  informação **não está contida** nos documentos" (pt-BR) or haiku's
+  grounded negative "there is **no mention of** Thunderbolt 5 support"
+  (which cites the actual port list — arguably better than a refusal).
+  Both phrasings are now in `eval/refusal.py`, observed-verbatim tests in
+  the fast suite.
+- **Always-rewrite has a measured English cost.** Two previously-hit cases
+  drop to context recall 0.000 under the rewritten query:
+  `x-part-lookup-dvd` (the catalog chunk was a marginal rank-6 hit on the
+  raw query; haiku's paraphrase "…specifications and details" pushes it
+  out of top-6) and `fig-keyboard-removal-diagram` (same mechanism). The
+  trade so far: two marginal English recalls for a fully working pt-BR
+  lane and pronoun-resolved retrieval on every turn. If more cases
+  accumulate, candidate mitigations are widening `top_k` or fusing
+  raw-query and rewritten-query retrievals.
+- **Remaining refusal mismatches are known patterns, not new defects.**
+  haiku 0.980: only `f-add-ram` (retrieval-miss case — it now refuses,
+  which is the *faithful* behavior; the metric's composition penalizes
+  it). qwen 0.940: `f-add-ram` (same), plus two hedges on cases with
+  perfect retrieval (`f-replace-wifi-card`, `fig-scanner-callouts`) — the
+  genuine cloud-vs-4B gap.
+- **Caveat:** the qwen run predates the "no mention of" detector addition
+  by one cycle (an API credit exhaustion blocked its re-run; the phrase
+  change couldn't have fixed any of qwen's three mismatches, which are
+  false refusals rather than detection misses — but strictly its numbers
+  were graded by the detector one phrase older than haiku's).
 
 ## Response Quality Benchmark
 
 LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the response-quality benchmark described in SPEC.md. Run with `uv run --project backend python -m eval.run` against a fully ingested database. The judge is pinned to `claude-sonnet-5` regardless of the generation provider, so every provider's answers share one grader; temperature is pinned to 0 on generation and rewrite calls (the judge takes no temperature parameter — removed on Claude 5-family models).
 
-The runs below predate the 2026-07-19 exact-token additions and cover the 37-case set; the 5 new questions are retrieval-only so far (retrieval eval, above) and have not been through the LLM-judge benchmark. Re-run to fold them in.
-
-### anthropic / claude-haiku-4-5 (37 cases)
+### anthropic / claude-haiku-4-5 (50 cases)
 
 | Metric | Score |
 |---|---|
-| refusal accuracy | 1.000 |
-| context precision | 0.711 |
-| context recall | 0.970 |
-| faithfulness | 0.856 |
-| answer relevancy | 0.935 |
+| refusal accuracy | 0.980 |
+| context precision | 0.789 |
+| context recall | 0.932 |
+| faithfulness | 0.857 |
+| answer relevancy | 0.952 |
 
 | Category | n | refusal acc. | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| factual | 10 | 1.000 | 0.742 | 1.000 | 0.895 | 0.990 |
-| figure | 5 | 1.000 | 0.500 | 1.000 | 0.800 | 0.760 |
-| multiturn | 4 | 1.000 | 0.717 | 1.000 | 0.925 | 0.900 |
+| exact-token | 5 | 1.000 | 0.732 | 0.800 | 0.920 | 1.000 |
+| factual | 10 | 1.000 | 0.774 | 1.000 | 0.865 | 0.970 |
+| figure | 5 | 1.000 | 0.800 | 0.800 | 0.750 | 0.820 |
+| multiturn | 4 | 1.000 | 0.833 | 1.000 | 0.963 | 0.887 |
 | negative | 4 | 1.000 | — | — | — | — |
-| procedure | 14 | 1.000 | 0.762 | 0.929 | 0.829 | 0.968 |
+| procedure | 14 | 0.929 | 0.738 | 0.929 | 0.823 | 0.973 |
+| ptbr | 8 | 1.000 | 0.940 | 1.000 | 0.883 | 0.992 |
 
 <details><summary>Per-question breakdown</summary>
 
 | id | category | refusal ok | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| f-wifi-connect | procedure | ✓ | 0.667 | 1.000 | 0.750 | 0.950 |
-| f-paper-jam | procedure | ✓ | 0.833 | 1.000 | 0.850 | 0.950 |
-| f-ink-level | factual | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
-| f-swap-cartridges | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
-| f-double-sided | factual | ✓ | 0.200 | 1.000 | 0.600 | 1.000 |
-| f-envelopes | procedure | ✓ | 0.500 | 1.000 | 1.000 | 1.000 |
-| f-scan-phone | procedure | ✓ | 0.417 | 1.000 | 1.000 | 1.000 |
+| f-wifi-connect | procedure | ✓ | 0.750 | 1.000 | 0.700 | 0.900 |
+| f-paper-jam | procedure | ✓ | 1.000 | 1.000 | 0.850 | 0.950 |
+| f-ink-level | factual | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
+| f-swap-cartridges | procedure | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
+| f-light-bar-amber | factual | ✓ | 0.877 | 1.000 | 0.900 | 0.950 |
+| f-double-sided | factual | ✓ | 0.500 | 1.000 | 0.600 | 0.900 |
+| f-envelopes | procedure | ✓ | 0.417 | 1.000 | 1.000 | 1.000 |
+| f-scan-phone | procedure | ✓ | 0.583 | 1.000 | 1.000 | 1.000 |
 | f-sleep-timer | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
-| f-factory-reset | procedure | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
-| f-photo-quality | factual | ✓ | 0.500 | 1.000 | 0.900 | 1.000 |
-| f-wont-print | procedure | ✓ | 0.750 | 1.000 | 0.900 | 1.000 |
-| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.600 | 0.950 |
-| f-add-ram | procedure | ✓ | 0.000 | 0.000 | 0.800 | 0.900 |
-| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.900 | 1.000 |
+| f-factory-reset | procedure | ✓ | 0.500 | 1.000 | 0.800 | 1.000 |
+| f-photo-quality | factual | ✓ | 0.333 | 1.000 | 0.750 | 0.950 |
+| f-wont-print | procedure | ✓ | 0.333 | 1.000 | 0.850 | 1.000 |
+| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.750 | 1.000 |
+| f-add-ram | procedure | ✗ | 0.000 | 0.000 | — | — |
+| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.950 | 1.000 |
 | f-open-bottom-cover | procedure | ✓ | 1.000 | 1.000 | 0.750 | 1.000 |
-| f-replace-wifi-card | procedure | ✓ | 1.000 | 1.000 | 0.500 | 0.850 |
-| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| f-replace-display | procedure | ✓ | 0.750 | 1.000 | 0.750 | 0.950 |
-| f-static-precautions | factual | ✓ | 0.887 | 1.000 | 0.850 | 1.000 |
-| f-battery-part-number | factual | ✓ | 0.583 | 1.000 | 1.000 | 1.000 |
-| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.750 | 0.900 |
-| f-bios-version | factual | ✓ | 0.833 | 1.000 | 1.000 | 1.000 |
-| f-display-panel-only | factual | ✓ | 0.750 | 1.000 | 1.000 | 1.000 |
-| fig-scanner-callouts | figure | ✓ | 0.250 | 1.000 | 0.600 | 0.500 |
-| fig-ssd-install-diagram | figure | ✓ | 0.833 | 1.000 | 0.500 | 0.600 |
-| fig-ram-install-diagram | figure | ✓ | 0.333 | 1.000 | 0.900 | 0.700 |
-| fig-keyboard-removal-diagram | figure | ✓ | 0.500 | 1.000 | 1.000 | 1.000 |
-| fig-wlan-diagram | figure | ✓ | 0.583 | 1.000 | 1.000 | 1.000 |
-| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
-| mt-battery-then-part-number | multiturn | ✓ | 0.700 | 1.000 | 0.900 | 0.600 |
-| mt-wifi-then-still-fails | multiturn | ✓ | 0.167 | 1.000 | 0.950 | 1.000 |
-| mt-bottom-cover-then-static | multiturn | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
+| f-replace-wifi-card | procedure | ✓ | 1.000 | 1.000 | 0.500 | 0.800 |
+| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
+| f-replace-display | procedure | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
+| f-static-precautions | factual | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
+| f-battery-part-number | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| f-wlan-part-number | factual | ✓ | 0.700 | 1.000 | 0.800 | 0.900 |
+| f-bios-version | factual | ✓ | 0.500 | 1.000 | 0.850 | 1.000 |
+| f-display-panel-only | factual | ✓ | 0.833 | 1.000 | 1.000 | 1.000 |
+| fig-scanner-callouts | figure | ✓ | 1.000 | 1.000 | 0.900 | 0.850 |
+| fig-ssd-install-diagram | figure | ✓ | 1.000 | 1.000 | 0.300 | 0.500 |
+| fig-ram-install-diagram | figure | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| fig-keyboard-removal-diagram | figure | ✓ | 0.000 | 0.000 | 0.600 | 0.750 |
+| fig-wlan-diagram | figure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| mt-battery-then-part-number | multiturn | ✓ | 1.000 | 1.000 | 1.000 | 0.600 |
+| mt-wifi-then-still-fails | multiturn | ✓ | 0.367 | 1.000 | 1.000 | 1.000 |
+| mt-bottom-cover-then-static | multiturn | ✓ | 0.967 | 1.000 | 0.850 | 0.950 |
 | neg-tire-pressure | negative | ✓ | — | — | — | — |
 | neg-router-password | negative | ✓ | — | — | — | — |
 | neg-thunderbolt | negative | ✓ | — | — | — | — |
 | neg-return-policy | negative | ✓ | — | — | — | — |
+| x-error-code-e3 | exact-token | ✓ | 1.000 | 1.000 | 0.700 | 1.000 |
+| x-part-lookup-speakers | exact-token | ✓ | 0.806 | 1.000 | 0.900 | 1.000 |
+| x-part-lookup-dvd | exact-token | ✓ | 0.000 | 0.000 | 1.000 | 1.000 |
+| x-wlan-realtek-part | exact-token | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| x-ram-16gb-part | exact-token | ✓ | 0.854 | 1.000 | 1.000 | 1.000 |
+| ptbr-swap-cartridges | ptbr | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
+| ptbr-paper-jam | ptbr | ✓ | 0.833 | 1.000 | 0.850 | 0.950 |
+| ptbr-battery-removal | ptbr | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
+| ptbr-error-e3 | ptbr | ✓ | 1.000 | 1.000 | 0.700 | 1.000 |
+| ptbr-battery-part-number | ptbr | ✓ | 0.806 | 1.000 | 1.000 | 1.000 |
+| ptbr-mt-cartridges-then-ink-level | ptbr | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| ptbr-neg-tire-pressure | ptbr | ✓ | — | — | — | — |
+| ptbr-neg-router-password | ptbr | ✓ | — | — | — | — |
 
 </details>
 
-### ollama / qwen3.5:4b (37 cases)
+### ollama / qwen3.5:4b (50 cases)
 
 | Metric | Score |
 |---|---|
-| refusal accuracy | 0.946 |
-| context precision | 0.722 |
-| context recall | 0.970 |
-| faithfulness | 0.726 |
+| refusal accuracy | 0.940 |
+| context precision | 0.780 |
+| context recall | 0.932 |
+| faithfulness | 0.728 |
 | answer relevancy | 0.890 |
 
 | Category | n | refusal acc. | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| factual | 10 | 0.900 | 0.742 | 1.000 | 0.783 | 0.906 |
-| figure | 5 | 1.000 | 0.500 | 1.000 | 0.630 | 0.770 |
-| multiturn | 4 | 1.000 | 0.812 | 1.000 | 0.800 | 0.887 |
+| exact-token | 5 | 1.000 | 0.801 | 1.000 | 0.870 | 0.980 |
+| factual | 10 | 1.000 | 0.694 | 0.900 | 0.798 | 0.915 |
+| figure | 5 | 0.800 | 1.000 | 1.000 | 0.475 | 0.700 |
+| multiturn | 4 | 1.000 | 0.804 | 1.000 | 0.725 | 0.850 |
 | negative | 4 | 1.000 | — | — | — | — |
-| procedure | 14 | 0.929 | 0.762 | 0.929 | 0.700 | 0.927 |
+| procedure | 14 | 0.857 | 0.661 | 0.857 | 0.733 | 0.912 |
+| ptbr | 8 | 1.000 | 0.986 | 1.000 | 0.650 | 0.883 |
 
 <details><summary>Per-question breakdown</summary>
 
 | id | category | refusal ok | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| f-wifi-connect | procedure | ✓ | 0.667 | 1.000 | 0.650 | 0.950 |
-| f-paper-jam | procedure | ✓ | 0.833 | 1.000 | 0.600 | 0.900 |
-| f-ink-level | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| f-wifi-connect | procedure | ✓ | 0.000 | 0.000 | 0.350 | 0.750 |
+| f-paper-jam | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
+| f-ink-level | factual | ✓ | 1.000 | 1.000 | 0.600 | 0.900 |
 | f-swap-cartridges | procedure | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
-| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 0.900 | 0.850 |
-| f-double-sided | factual | ✓ | 0.200 | 1.000 | 0.700 | 0.900 |
-| f-envelopes | procedure | ✓ | 0.500 | 1.000 | 0.700 | 0.950 |
-| f-scan-phone | procedure | ✓ | 0.417 | 1.000 | 0.850 | 1.000 |
-| f-sleep-timer | factual | ✓ | 1.000 | 1.000 | 0.800 | 1.000 |
-| f-factory-reset | procedure | ✓ | 1.000 | 1.000 | 0.600 | 0.850 |
-| f-photo-quality | factual | ✓ | 0.500 | 1.000 | 0.900 | 1.000 |
-| f-wont-print | procedure | ✓ | 0.750 | 1.000 | 0.600 | 0.900 |
-| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.750 | 1.000 |
+| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 0.750 | 0.900 |
+| f-double-sided | factual | ✓ | 0.000 | 0.000 | 0.700 | 0.900 |
+| f-envelopes | procedure | ✓ | 0.500 | 1.000 | 0.750 | 0.950 |
+| f-scan-phone | procedure | ✓ | 0.833 | 1.000 | 0.600 | 0.850 |
+| f-sleep-timer | factual | ✓ | 0.500 | 1.000 | 0.850 | 0.950 |
+| f-factory-reset | procedure | ✓ | 0.500 | 1.000 | 0.700 | 0.850 |
+| f-photo-quality | factual | ✓ | 0.333 | 1.000 | 0.850 | 0.950 |
+| f-wont-print | procedure | ✓ | 0.167 | 1.000 | 0.750 | 0.900 |
+| f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
 | f-add-ram | procedure | ✗ | 0.000 | 0.000 | — | — |
-| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.850 | 0.950 |
-| f-open-bottom-cover | procedure | ✓ | 1.000 | 1.000 | 0.600 | 0.900 |
-| f-replace-wifi-card | procedure | ✓ | 1.000 | 1.000 | 0.500 | 0.750 |
-| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
-| f-replace-display | procedure | ✓ | 0.750 | 1.000 | 0.750 | 0.950 |
-| f-static-precautions | factual | ✓ | 0.887 | 1.000 | 0.750 | 0.900 |
-| f-battery-part-number | factual | ✗ | 0.583 | 1.000 | — | — |
-| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.400 | 0.500 |
-| f-bios-version | factual | ✓ | 0.833 | 1.000 | 0.850 | 1.000 |
-| f-display-panel-only | factual | ✓ | 0.750 | 1.000 | 0.750 | 1.000 |
-| fig-scanner-callouts | figure | ✓ | 0.250 | 1.000 | 0.550 | 0.700 |
-| fig-ssd-install-diagram | figure | ✓ | 0.833 | 1.000 | 0.700 | 0.750 |
-| fig-ram-install-diagram | figure | ✓ | 0.333 | 1.000 | 0.900 | 0.900 |
-| fig-keyboard-removal-diagram | figure | ✓ | 0.500 | 1.000 | 0.500 | 0.900 |
-| fig-wlan-diagram | figure | ✓ | 0.583 | 1.000 | 0.500 | 0.600 |
-| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
-| mt-battery-then-part-number | multiturn | ✓ | 1.000 | 1.000 | 0.500 | 0.600 |
-| mt-wifi-then-still-fails | multiturn | ✓ | 0.250 | 1.000 | 0.750 | 0.950 |
-| mt-bottom-cover-then-static | multiturn | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.550 | 0.850 |
+| f-open-bottom-cover | procedure | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| f-replace-wifi-card | procedure | ✗ | 0.500 | 1.000 | — | — |
+| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| f-replace-display | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.900 |
+| f-static-precautions | factual | ✓ | 1.000 | 1.000 | 0.880 | 1.000 |
+| f-battery-part-number | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.600 | 0.600 |
+| f-bios-version | factual | ✓ | 0.633 | 1.000 | 0.850 | 1.000 |
+| f-display-panel-only | factual | ✓ | 0.806 | 1.000 | 0.900 | 0.950 |
+| fig-scanner-callouts | figure | ✗ | 1.000 | 1.000 | — | — |
+| fig-ssd-install-diagram | figure | ✓ | 1.000 | 1.000 | 0.600 | 0.600 |
+| fig-ram-install-diagram | figure | ✓ | 1.000 | 1.000 | 0.300 | 0.300 |
+| fig-keyboard-removal-diagram | figure | ✓ | 1.000 | 1.000 | 0.500 | 1.000 |
+| fig-wlan-diagram | figure | ✓ | 1.000 | 1.000 | 0.500 | 0.900 |
+| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 0.600 | 1.000 |
+| mt-battery-then-part-number | multiturn | ✓ | 1.000 | 1.000 | 0.600 | 0.500 |
+| mt-wifi-then-still-fails | multiturn | ✓ | 0.250 | 1.000 | 0.850 | 0.900 |
+| mt-bottom-cover-then-static | multiturn | ✓ | 0.967 | 1.000 | 0.850 | 1.000 |
 | neg-tire-pressure | negative | ✓ | — | — | — | — |
 | neg-router-password | negative | ✓ | — | — | — | — |
 | neg-thunderbolt | negative | ✓ | — | — | — | — |
 | neg-return-policy | negative | ✓ | — | — | — | — |
+| x-error-code-e3 | exact-token | ✓ | 1.000 | 1.000 | 0.500 | 0.900 |
+| x-part-lookup-speakers | exact-token | ✓ | 0.806 | 1.000 | 1.000 | 1.000 |
+| x-part-lookup-dvd | exact-token | ✓ | 0.200 | 1.000 | 1.000 | 1.000 |
+| x-wlan-realtek-part | exact-token | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
+| x-ram-16gb-part | exact-token | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| ptbr-swap-cartridges | ptbr | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
+| ptbr-paper-jam | ptbr | ✓ | 1.000 | 1.000 | 0.650 | 0.950 |
+| ptbr-battery-removal | ptbr | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
+| ptbr-error-e3 | ptbr | ✓ | 1.000 | 1.000 | 0.200 | 0.700 |
+| ptbr-battery-part-number | ptbr | ✓ | 0.917 | 1.000 | 0.400 | 0.700 |
+| ptbr-mt-cartridges-then-ink-level | ptbr | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| ptbr-neg-tire-pressure | ptbr | ✓ | — | — | — | — |
+| ptbr-neg-router-password | ptbr | ✓ | — | — | — | — |
 
 </details>

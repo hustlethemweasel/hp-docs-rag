@@ -66,9 +66,9 @@ harness caught, which decisions the evals settled) lives in SPEC.md,
   ingested end-to-end in Compose (515 chunks).
 - **Serving:** `HybridRetriever` (dense + Postgres FTS with OR-of-words
   query construction, RRF k=60, top-6, refuses when retrieval comes back
-  empty) → history windowing + query rewriting (to English — see SPEC's
-  multilingual section) → `ChatService` → SSE chat endpoint + conversation
-  CRUD, with
+  empty) → history windowing + query rewriting to English on **every turn
+  including the first** (see SPEC's multilingual section) → `ChatService`
+  → SSE chat endpoint + conversation CRUD, with
   `RequestIDMiddleware` and a structured error envelope. Providers:
   `AnthropicProvider`, `OllamaProvider`, `ScriptedProvider` (fast suite +
   load-test scenario (a)). The never-implemented `openai` option and the
@@ -80,14 +80,15 @@ harness caught, which decisions the evals settled) lives in SPEC.md,
 - **Evidence:** `eval/REPORT.md` — retrieval eval (recall@k/MRR@20, the gate
   for model/chunking changes; hybrid beats dense 0.971/0.838 vs 0.941/0.782
   on the 34-question basis since the FTS OR-of-words fix) and the
-  response-quality benchmark, judged by pinned `claude-sonnet-5` (still on
-  the 37-case golden set predating the 5 exact-token additions):
-  claude-haiku-4-5 refusal 1.000 / faithfulness 0.856; local qwen3.5:4b
-  0.946 / 0.726 (context recall 0.970 for both — same retriever).
+  response-quality benchmark on the 50-case golden set (incl. the
+  exact-token and pt-BR slices), judged by pinned `claude-sonnet-5`:
+  claude-haiku-4-5 refusal 0.980 / faithfulness 0.857; local qwen3.5:4b
+  0.940 / 0.728 (context recall 0.932 for both — same retriever; the pt-BR
+  slice is 1.000 refusal / 1.000 context recall on both providers).
   `loadtest/REPORT.md` — ~891 req/min within threshold (scenario a),
   LLM-dominated p95 ~8.5s (scenario b). The rejected re-ranker spike is
   restorable from commit `f1b92a9`.
-- **Suites:** 161 fast backend tests @ ~93.6% coverage; 37 Vitest/RTL
+- **Suites:** 165 fast backend tests @ ~93.6% coverage; 37 Vitest/RTL
   frontend tests.
 - Verified live (browser + curl) against real ingested chunks with both the
   real Anthropic provider and the Ollama local path (`qwen3.5:4b` on host
