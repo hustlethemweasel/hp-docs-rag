@@ -1,4 +1,7 @@
-"""Retrieval eval runner: recall@k + MRR, dense-only and full hybrid.
+"""Retrieval eval runner: recall@k + MRR@20, dense-only and full hybrid.
+
+MRR is reported over the retrieved top-20 candidate pool (CANDIDATES) — a
+miss beyond rank 20 scores zero, the same cutoff as recall@20.
 
 Dense-only numbers gate embedding-model swaps (the retriever a swap actually
 changes); hybrid numbers (dense + FTS fused with RRF, via the real
@@ -31,7 +34,7 @@ def _summarize(label: str, ranks: list[int | None]) -> None:
     print(f"{label}:")
     print(f"  recall@6:  {recall_at(ranks, k=6):.3f}")
     print(f"  recall@20: {recall_at(ranks, k=20):.3f}")
-    print(f"  MRR:       {mean_reciprocal_rank(ranks):.3f}")
+    print(f"  MRR@20:    {mean_reciprocal_rank(ranks):.3f}")
 
 
 async def run() -> None:
