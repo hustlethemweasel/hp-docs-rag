@@ -12,16 +12,23 @@ Every provider call pins temperature=0 for reproducibility, matching §13's
 tuning-harness requirement. Re-run once per provider (e.g. once with
 LLM_PROVIDER=anthropic, once with LLM_PROVIDER=ollama) to build the
 per-provider comparison in REPORT.md.
+
+The judge is pinned to JUDGE_MODEL regardless of LLM_PROVIDER, so every
+provider's answers are graded by the same model — one deliberately stronger
+than any graded model, so no contestant grades its own answers
+(ANTHROPIC_API_KEY is therefore required even for local-provider runs).
 """
 
 import asyncio
 
+import anthropic
 import structlog
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import get_settings
 from app.ingest.embedding import load_embedder
-from app.providers.base import ChatMessage
+from app.providers.anthropic import AnthropicProvider
+from app.providers.base import ChatMessage, ChatProvider
 from app.providers.factory import build_provider
 from app.rag.chat_service import REFUSAL_MESSAGE
 from app.rag.prompting import build_system_prompt
@@ -35,11 +42,22 @@ from eval.refusal import is_refusal
 from eval.report import CaseRecord, ProviderRun, save_run, update_report
 
 TEMPERATURE = 0.0
+JUDGE_MODEL = "claude-sonnet-5"
 logger = structlog.get_logger(__name__)
 
 
+def build_judge(settings) -> ChatProvider:
+    """Fixed judge, independent of the generation provider under test."""
+    if not settings.anthropic_api_key:
+        raise ValueError("the pinned judge requires ANTHROPIC_API_KEY")
+    return AnthropicProvider(
+        client=anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key),
+        model=JUDGE_MODEL,
+    )
+
+
 async def run_case(
-    case: GoldenCase, *, retriever: HybridRetriever, provider
+    case: GoldenCase, *, retriever: HybridRetriever, provider, judge_provider
 ) -> CaseRecord:
     search_query = await rewrite_query(
         provider, case.history, case.question, temperature=TEMPERATURE
@@ -71,7 +89,7 @@ async def run_case(
         if retrieved and not refused:
             context_text = "\n\n".join(c.content for c in retrieved)
             score = await judge(
-                provider,
+                judge_provider,
                 question=case.question,
                 answer=answer,
                 context=context_text,
@@ -110,6 +128,7 @@ async def run() -> None:
     settings = get_settings()
     embedder = load_embedder(settings.embedding_model)
     provider = build_provider(settings)
+    judge_provider = build_judge(settings)
     engine = create_async_engine(settings.database_url)
     golden = load_golden()
 
@@ -124,7 +143,10 @@ async def run() -> None:
             )
             for golden_case in golden:
                 record = await run_case(
-                    golden_case, retriever=retriever, provider=provider
+                    golden_case,
+                    retriever=retriever,
+                    provider=provider,
+                    judge_provider=judge_provider,
                 )
                 cases.append(record)
                 status = "ok" if record.refusal_correct else "REFUSAL MISMATCH"
