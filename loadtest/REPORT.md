@@ -29,24 +29,42 @@ scenario is structurally small: the locust flow is follow-up-dominated
 always ran the rewrite — only the one first message per conversation
 gained a stream.
 
-**Reconfirmation attempt (2026-07-19): did not reproduce — environmental,
-not code.** A same-day scenario (a) re-run on the same machine could not
-reproduce the recorded figures: at 60 users the `api` container was
-OOM-killed (exit 137; resident memory grew from a 940MiB cold start past
-the Docker VM's ~7.6GiB during the run), and at 20 users both TTFB and
-full-answer latency showed a bimodal ~22-30s tail (pool-timeout-shaped;
-p95 ≈ 25-29s, sporadic failures) that the recorded runs never exhibited.
-Cause isolated away from the application: an A/B against an image built
-from the pre-always-rewrite commit showed statistically identical
-degradation (p95 25s vs 29s, same failure modes), and the per-request
-path is healthy in isolation (3.1s per chat unloaded — 2.2s of which is
-the two deliberate scripted streams — with query embedding at ~90ms and
-DB round-trips in the milliseconds). The recorded numbers above therefore
-remain the durable evidence, measured in a Docker Desktop environment
-this attempt could not recreate; the reproduction commands are unchanged.
-If a future re-run hits the same wall, the leads are the ~30s
-pool-timeout-shaped tail and the api container's unbounded memory growth
-under concurrency (940MiB → 5GiB+ during a 60s, 20-user run).
+**Reconfirmation attempt (2026-07-19): did not reproduce — cause is
+outside the application, isolated by three controlled experiments.** A
+same-day scenario (a) re-run could not reproduce the recorded figures: at
+60 users the `api` container was OOM-killed (exit 137; resident memory
+grew from a ~1GiB cold start past the Docker VM's ~7.6GiB during the
+run), and at 20 users both TTFB and full-answer latency showed a bimodal
+~20-30s tail (pool-timeout-shaped; p95 ≈ 21-29s, ~6% of chat requests
+failing) that the recorded runs never exhibited. The cause was isolated
+away from every in-repo variable:
+
+1. **Not always-rewrite** — an image built from the immediately-pre-change
+   commit degraded identically (p95 25s vs 29s). Structurally expected:
+   the locust flow is follow-up-dominated, and follow-ups always ran the
+   rewrite.
+2. **Not any of the day's changes** (OR-of-words FTS included) — an image
+   built from the previous day's commit (`7e8ccea`, the exact code
+   running when the container was last known healthy) also degraded
+   identically (p95 22s, same failure count, memory 0.6 → 3.7GiB in 60s).
+3. **Not stale Docker VM state or DB bloat** — a full Docker Desktop
+   restart reproduced the degradation on a cold VM (Docker 29.0.1, 14
+   CPUs, 7.65GiB; api memory 533MiB cold → 4.8GiB after one 20-user
+   minute), and the database held only ~500 message rows.
+
+The per-request path is healthy in isolation: 3.1s per chat unloaded —
+2.2s of which is the two deliberate scripted streams — with query
+embedding at ~90ms and DB round-trips in milliseconds. Conclusion: the
+recorded numbers were obtained under a host/Docker configuration that no
+longer exists (VM resource allocation is the sharpest suspect — it was
+not recorded at measurement time, a gap this note now closes: **future
+runs should record `docker info` CPUs/memory**). The recorded numbers
+above remain the durable evidence for that environment; the reproduction
+commands are unchanged. Leads for a future investigation: the
+pool-timeout-shaped ~30s tail, and the api container's memory growth
+under concurrency (~3-4GiB per loaded minute, never returned to the OS —
+per-thread native allocator retention in the `asyncio.to_thread` pool is
+the leading suspect).
 
 ---
 
