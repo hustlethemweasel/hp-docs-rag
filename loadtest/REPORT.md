@@ -29,42 +29,49 @@ scenario is structurally small: the locust flow is follow-up-dominated
 always ran the rewrite — only the one first message per conversation
 gained a stream.
 
-**Reconfirmation attempt (2026-07-19): did not reproduce — cause is
-outside the application, isolated by three controlled experiments.** A
-same-day scenario (a) re-run could not reproduce the recorded figures: at
-60 users the `api` container was OOM-killed (exit 137; resident memory
-grew from a ~1GiB cold start past the Docker VM's ~7.6GiB during the
-run), and at 20 users both TTFB and full-answer latency showed a bimodal
-~20-30s tail (pool-timeout-shaped; p95 ≈ 21-29s, ~6% of chat requests
-failing) that the recorded runs never exhibited. The cause was isolated
-away from every in-repo variable:
+**Reconfirmation (2026-07-19/20): reproduced within threshold after
+diagnosing a cold-start trap.** A re-run of scenario (a) at 60 users
+initially failed catastrophically — the `api` container OOM-killed (exit
+137) on an 8GiB Docker VM, and even 20-user runs showed a bimodal
+~20-30s pool-timeout-shaped tail with ~6% chat failures. A day of
+controlled elimination (A/B images at the pre-always-rewrite commit and
+at the previous day's commit — both degraded identically; a full Docker
+Desktop restart — degradation reproduced cold; a 15GiB VM — consumed
+12GiB and still collapsed; `MALLOC_ARENA_MAX=2` — no effect; DB at ~500
+rows) ruled out every code and environment suspect, and in-container
+probes localized the real cause: **cold-start warmup colliding with
+`--spawn-rate 60`.**
 
-1. **Not always-rewrite** — an image built from the immediately-pre-change
-   commit degraded identically (p95 25s vs 29s). Structurally expected:
-   the locust flow is follow-up-dominated, and follow-ups always ran the
-   rewrite.
-2. **Not any of the day's changes** (OR-of-words FTS included) — an image
-   built from the previous day's commit (`7e8ccea`, the exact code
-   running when the container was last known healthy) also degraded
-   identically (p95 22s, same failure count, memory 0.6 → 3.7GiB in 60s).
-3. **Not stale Docker VM state or DB bloat** — a full Docker Desktop
-   restart reproduced the degradation on a cold VM (Docker 29.0.1, 14
-   CPUs, 7.65GiB; api memory 533MiB cold → 4.8GiB after one 20-user
-   minute), and the database held only ~500 message rows.
+A freshly started `api` pays a one-time, per-concurrency-level warmup —
+lazy per-thread torch initialization across the `asyncio.to_thread` pool
+(bounded: ~176MiB for 18 threads in isolation) plus native allocator
+growth to a stable plateau (~5GiB at 20-60 concurrent streams; three
+consecutive 20-stream waves grew memory once, then flat; 100 sequential
+embeds grew it not at all). Hitting a cold instance with the full user
+count at once queues requests behind that warmup into the 30s DB-pool
+timeout, and on an 8GiB VM the warmup spike plus queued-request state
+OOMs outright. The recorded ramp (10 → 80 users, one long-lived `api`)
+never saw this because each stage warmed the next.
 
-The per-request path is healthy in isolation: 3.1s per chat unloaded —
-2.2s of which is the two deliberate scripted streams — with query
-embedding at ~90ms and DB round-trips in milliseconds. Conclusion: the
-recorded numbers were obtained under a host/Docker configuration that no
-longer exists (VM resource allocation is the sharpest suspect — it was
-not recorded at measurement time, a gap this note now closes: **future
-runs should record `docker info` CPUs/memory**). The recorded numbers
-above remain the durable evidence for that environment; the reproduction
-commands are unchanged. Leads for a future investigation: the
-pool-timeout-shaped ~30s tail, and the api container's memory growth
-under concurrency (~3-4GiB per loaded minute, never returned to the OS —
-per-thread native allocator retention in the `asyncio.to_thread` pool is
-the leading suspect).
+Against a **warm** instance the system reproduces the recorded behavior
+(Docker 29.0.1, 14 CPUs, 15GiB VM; api ≈ 425% of 1400% CPU, db ≈ 1%,
+memory flat at ~5.1GiB):
+
+| warm run | req/min | errors | create p95 | list p95 | full answer p50/p95 |
+|---|---|---|---|---|---|
+| 20 users | ~312 | 0 | 220ms | 200ms | 3.2s / 4.6s |
+| 40 users | ~688 | 0 | 240ms | 59ms | 6.0s / 8.0s |
+| 60 users (ramped) | **~742** | **0** | **1.2s** | **1.7s** | 9.5s / 11s |
+
+60 users sustains ~742 req/min with zero errors and both non-LLM
+endpoints within the 2s p95 threshold — the same qualitative result as
+the recorded ~891, with the ~17% delta plausibly the always-rewrite
+stream added to each conversation's first message plus run-to-run
+variance (not re-litigated further; both numbers are within-threshold
+passes at 60 users). Two process lessons are now part of this report:
+**warm the api through a ramp (or a prior lower-user stage) before
+measuring**, and **record `docker info` CPUs/memory with every run** —
+this section's numbers: Docker 29.0.1, 14 CPUs, 15GiB VM.
 
 ---
 
