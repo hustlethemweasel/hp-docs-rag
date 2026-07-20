@@ -23,13 +23,30 @@ Both scenarios run the identical script; the only difference is how the
 
 **Staleness note (2026-07-19):** these numbers predate the always-rewrite
 change (SPEC's multilingual section) — first-turn messages now make two
-provider calls (rewrite + answer) instead of one, so scenario (a)'s
-per-message cost includes one extra scripted stream per first turn that
-these measurements never saw. Likely immaterial at scripted latencies
-(~1s per 36-token stream, on requests already measured in seconds), and
-scenario (b)'s conclusion (LLM generation dominates) only strengthens
-with a second LLM call — but strictly, re-run to reconfirm the ~891
-req/min figure.
+provider calls (rewrite + answer) instead of one. The impact on this
+scenario is structurally small: the locust flow is follow-up-dominated
+(each user sends ~6 messages per conversation, weight 6:1), and follow-ups
+always ran the rewrite — only the one first message per conversation
+gained a stream.
+
+**Reconfirmation attempt (2026-07-19): did not reproduce — environmental,
+not code.** A same-day scenario (a) re-run on the same machine could not
+reproduce the recorded figures: at 60 users the `api` container was
+OOM-killed (exit 137; resident memory grew from a 940MiB cold start past
+the Docker VM's ~7.6GiB during the run), and at 20 users both TTFB and
+full-answer latency showed a bimodal ~22-30s tail (pool-timeout-shaped;
+p95 ≈ 25-29s, sporadic failures) that the recorded runs never exhibited.
+Cause isolated away from the application: an A/B against an image built
+from the pre-always-rewrite commit showed statistically identical
+degradation (p95 25s vs 29s, same failure modes), and the per-request
+path is healthy in isolation (3.1s per chat unloaded — 2.2s of which is
+the two deliberate scripted streams — with query embedding at ~90ms and
+DB round-trips in the milliseconds). The recorded numbers above therefore
+remain the durable evidence, measured in a Docker Desktop environment
+this attempt could not recreate; the reproduction commands are unchanged.
+If a future re-run hits the same wall, the leads are the ~30s
+pool-timeout-shaped tail and the api container's unbounded memory growth
+under concurrency (940MiB → 5GiB+ during a 60s, 20-user run).
 
 ---
 
