@@ -445,11 +445,13 @@ chunks on raw pt-BR queries). Findings the aggregate tables hide:
   it). qwen 0.940: `f-add-ram` (same), plus two hedges on cases with
   perfect retrieval (`f-replace-wifi-card`, `fig-scanner-callouts`) — the
   genuine cloud-vs-4B gap.
-- **Caveat:** the qwen run predates the "no mention of" detector addition
-  by one cycle (an API credit exhaustion blocked its re-run; the phrase
-  change couldn't have fixed any of qwen's three mismatches, which are
-  false refusals rather than detection misses — but strictly its numbers
-  were graded by the detector one phrase older than haiku's).
+- **Detector parity confirmed.** The qwen run was initially graded by a
+  detector one phrase older than haiku's (an API credit exhaustion blocked
+  the re-run); once re-run under the final detector it reproduced the same
+  refusal accuracy with the identical three mismatches and the same clean
+  pt-BR slice — the phrase gap was, as predicted, immaterial (faithfulness
+  and relevancy moved only within judge jitter, 0.728 → 0.726 and
+  0.890 → 0.879).
 
 ## Response Quality Benchmark
 
@@ -539,56 +541,56 @@ LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the respo
 | refusal accuracy | 0.940 |
 | context precision | 0.780 |
 | context recall | 0.932 |
-| faithfulness | 0.728 |
-| answer relevancy | 0.890 |
+| faithfulness | 0.726 |
+| answer relevancy | 0.879 |
 
 | Category | n | refusal acc. | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
 | exact-token | 5 | 1.000 | 0.801 | 1.000 | 0.870 | 0.980 |
-| factual | 10 | 1.000 | 0.694 | 0.900 | 0.798 | 0.915 |
-| figure | 5 | 0.800 | 1.000 | 1.000 | 0.475 | 0.700 |
-| multiturn | 4 | 1.000 | 0.804 | 1.000 | 0.725 | 0.850 |
+| factual | 10 | 1.000 | 0.694 | 0.900 | 0.765 | 0.925 |
+| figure | 5 | 0.800 | 1.000 | 1.000 | 0.475 | 0.650 |
+| multiturn | 4 | 1.000 | 0.804 | 1.000 | 0.787 | 0.838 |
 | negative | 4 | 1.000 | — | — | — | — |
-| procedure | 14 | 0.857 | 0.661 | 0.857 | 0.733 | 0.912 |
-| ptbr | 8 | 1.000 | 0.986 | 1.000 | 0.650 | 0.883 |
+| procedure | 14 | 0.857 | 0.661 | 0.857 | 0.733 | 0.896 |
+| ptbr | 8 | 1.000 | 0.986 | 1.000 | 0.650 | 0.867 |
 
 <details><summary>Per-question breakdown</summary>
 
 | id | category | refusal ok | ctx precision | ctx recall | faithfulness | relevancy |
 |---|---|---|---|---|---|---|
-| f-wifi-connect | procedure | ✓ | 0.000 | 0.000 | 0.350 | 0.750 |
-| f-paper-jam | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
+| f-wifi-connect | procedure | ✓ | 0.000 | 0.000 | 0.400 | 0.600 |
+| f-paper-jam | procedure | ✓ | 1.000 | 1.000 | 0.850 | 0.950 |
 | f-ink-level | factual | ✓ | 1.000 | 1.000 | 0.600 | 0.900 |
 | f-swap-cartridges | procedure | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
-| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 0.750 | 0.900 |
-| f-double-sided | factual | ✓ | 0.000 | 0.000 | 0.700 | 0.900 |
+| f-light-bar-amber | factual | ✓ | 1.000 | 1.000 | 0.600 | 0.850 |
+| f-double-sided | factual | ✓ | 0.000 | 0.000 | 0.600 | 0.950 |
 | f-envelopes | procedure | ✓ | 0.500 | 1.000 | 0.750 | 0.950 |
 | f-scan-phone | procedure | ✓ | 0.833 | 1.000 | 0.600 | 0.850 |
 | f-sleep-timer | factual | ✓ | 0.500 | 1.000 | 0.850 | 0.950 |
-| f-factory-reset | procedure | ✓ | 0.500 | 1.000 | 0.700 | 0.850 |
-| f-photo-quality | factual | ✓ | 0.333 | 1.000 | 0.850 | 0.950 |
+| f-factory-reset | procedure | ✓ | 0.500 | 1.000 | 0.600 | 0.850 |
+| f-photo-quality | factual | ✓ | 0.333 | 1.000 | 0.850 | 1.000 |
 | f-wont-print | procedure | ✓ | 0.167 | 1.000 | 0.750 | 0.900 |
 | f-battery-removal | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
 | f-add-ram | procedure | ✗ | 0.000 | 0.000 | — | — |
-| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.550 | 0.850 |
+| f-replace-ssd | procedure | ✓ | 0.750 | 1.000 | 0.600 | 0.850 |
 | f-open-bottom-cover | procedure | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
 | f-replace-wifi-card | procedure | ✗ | 0.500 | 1.000 | — | — |
-| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
+| f-replace-fan | procedure | ✓ | 1.000 | 1.000 | 0.850 | 0.950 |
 | f-replace-display | procedure | ✓ | 1.000 | 1.000 | 0.750 | 0.900 |
-| f-static-precautions | factual | ✓ | 1.000 | 1.000 | 0.880 | 1.000 |
+| f-static-precautions | factual | ✓ | 1.000 | 1.000 | 0.850 | 0.950 |
 | f-battery-part-number | factual | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
-| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.600 | 0.600 |
+| f-wlan-part-number | factual | ✓ | 0.667 | 1.000 | 0.600 | 0.700 |
 | f-bios-version | factual | ✓ | 0.633 | 1.000 | 0.850 | 1.000 |
-| f-display-panel-only | factual | ✓ | 0.806 | 1.000 | 0.900 | 0.950 |
+| f-display-panel-only | factual | ✓ | 0.806 | 1.000 | 0.850 | 0.950 |
 | fig-scanner-callouts | figure | ✗ | 1.000 | 1.000 | — | — |
 | fig-ssd-install-diagram | figure | ✓ | 1.000 | 1.000 | 0.600 | 0.600 |
-| fig-ram-install-diagram | figure | ✓ | 1.000 | 1.000 | 0.300 | 0.300 |
-| fig-keyboard-removal-diagram | figure | ✓ | 1.000 | 1.000 | 0.500 | 1.000 |
-| fig-wlan-diagram | figure | ✓ | 1.000 | 1.000 | 0.500 | 0.900 |
-| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 0.600 | 1.000 |
-| mt-battery-then-part-number | multiturn | ✓ | 1.000 | 1.000 | 0.600 | 0.500 |
+| fig-ram-install-diagram | figure | ✓ | 1.000 | 1.000 | 0.300 | 0.200 |
+| fig-keyboard-removal-diagram | figure | ✓ | 1.000 | 1.000 | 0.400 | 0.900 |
+| fig-wlan-diagram | figure | ✓ | 1.000 | 1.000 | 0.600 | 0.900 |
+| mt-cartridges-then-ink-level | multiturn | ✓ | 1.000 | 1.000 | 0.700 | 0.850 |
+| mt-battery-then-part-number | multiturn | ✓ | 1.000 | 1.000 | 0.700 | 0.600 |
 | mt-wifi-then-still-fails | multiturn | ✓ | 0.250 | 1.000 | 0.850 | 0.900 |
-| mt-bottom-cover-then-static | multiturn | ✓ | 0.967 | 1.000 | 0.850 | 1.000 |
+| mt-bottom-cover-then-static | multiturn | ✓ | 0.967 | 1.000 | 0.900 | 1.000 |
 | neg-tire-pressure | negative | ✓ | — | — | — | — |
 | neg-router-password | negative | ✓ | — | — | — | — |
 | neg-thunderbolt | negative | ✓ | — | — | — | — |
@@ -598,12 +600,12 @@ LLM-as-judge quality benchmark on the golden set (`golden.jsonl`), per the respo
 | x-part-lookup-dvd | exact-token | ✓ | 0.200 | 1.000 | 1.000 | 1.000 |
 | x-wlan-realtek-part | exact-token | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
 | x-ram-16gb-part | exact-token | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
-| ptbr-swap-cartridges | ptbr | ✓ | 1.000 | 1.000 | 0.900 | 1.000 |
-| ptbr-paper-jam | ptbr | ✓ | 1.000 | 1.000 | 0.650 | 0.950 |
+| ptbr-swap-cartridges | ptbr | ✓ | 1.000 | 1.000 | 0.850 | 1.000 |
+| ptbr-paper-jam | ptbr | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
 | ptbr-battery-removal | ptbr | ✓ | 1.000 | 1.000 | 0.750 | 0.950 |
-| ptbr-error-e3 | ptbr | ✓ | 1.000 | 1.000 | 0.200 | 0.700 |
+| ptbr-error-e3 | ptbr | ✓ | 1.000 | 1.000 | 0.200 | 0.600 |
 | ptbr-battery-part-number | ptbr | ✓ | 0.917 | 1.000 | 0.400 | 0.700 |
-| ptbr-mt-cartridges-then-ink-level | ptbr | ✓ | 1.000 | 1.000 | 1.000 | 1.000 |
+| ptbr-mt-cartridges-then-ink-level | ptbr | ✓ | 1.000 | 1.000 | 0.950 | 1.000 |
 | ptbr-neg-tire-pressure | ptbr | ✓ | — | — | — | — |
 | ptbr-neg-router-password | ptbr | ✓ | — | — | — | — |
 

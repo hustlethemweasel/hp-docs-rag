@@ -83,7 +83,7 @@ harness caught, which decisions the evals settled) lives in SPEC.md,
   response-quality benchmark on the 50-case golden set (incl. the
   exact-token and pt-BR slices), judged by pinned `claude-sonnet-5`:
   claude-haiku-4-5 refusal 0.980 / faithfulness 0.857; local qwen3.5:4b
-  0.940 / 0.728 (context recall 0.932 for both — same retriever; the pt-BR
+  0.940 / 0.726 (context recall 0.932 for both — same retriever; the pt-BR
   slice is 1.000 refusal / 1.000 context recall on both providers).
   `loadtest/REPORT.md` — ~891 req/min within threshold (scenario a),
   LLM-dominated p95 ~8.5s (scenario b). The rejected re-ranker spike is
